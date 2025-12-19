@@ -1,0 +1,151 @@
+@page "/preview/{TenantId:guid}/{Slug}"
+@using CoreBuilder.Models
+@using CoreBuilder.Data
+@inject AppDbContext Context
+@layout EmptyLayout
+
+<style>
+    :root {
+        --primary-color: @(currentTheme?.PrimaryColor ?? "#2563eb");
+        --secondary-color: @(currentTheme?.SecondaryColor ?? "#f8fafc");
+        --font-family: @(currentTheme?.FontFamily ?? "'Inter', sans-serif");
+    }
+
+    body {
+        font-family: var(--font-family);
+        margin: 0 !important;
+        padding: 0 !important;
+        background-color: var(--secondary-color);
+        color: #1e293b;
+    }
+
+    /* Navbar Tasarımı ve Hizalaması */
+    .custom-navbar {
+        background-color: var(--primary-color);
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }
+
+    .nav-container {
+        display: flex;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .nav-item-link {
+        display: block;
+        padding: 1.2rem 1.8rem;
+        color: rgba(255, 255, 255, 0.9);
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        border-bottom: 4px solid transparent;
+    }
+
+    .nav-item-link:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .nav-item-link.active-page {
+        background-color: rgba(0, 0, 0, 0.15);
+        color: #fff;
+        border-bottom: 4px solid #fff;
+    }
+
+    /* İçerik Kutusu */
+    .main-wrapper {
+        max-width: 1100px;
+        margin: 40px auto;
+        padding: 0 20px;
+    }
+
+    .content-box {
+        background: #ffffff;
+        padding: 50px;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+        min-height: 500px;
+        line-height: 1.8;
+    }
+
+    .content-box h1 {
+        color: var(--primary-color);
+        margin-top: 0;
+        font-weight: 800;
+    }
+
+    footer {
+        text-align: center;
+        padding: 40px 0;
+        color: #94a3b8;
+        font-size: 0.85rem;
+    }
+</style>
+
+@if (currentPage == null)
+{
+    <div style="text-align:center; padding:100px; background: white; height: 100vh;">
+        <h1 style="font-size:80px; color:#e2e8f0; margin:0;">404</h1>
+        <p style="color:#64748b;">Aradığınız sayfa bu sitede mevcut değil.</p>
+        <a href="/pages" style="color:var(--primary-color); text-decoration:none; font-weight:bold;">Panel'e Dön</a>
+    </div>
+}
+else
+{
+    <nav class="custom-navbar">
+        <ul class="nav-container">
+            @foreach (var p in navPages)
+            {
+                <li>
+                    <a href="/preview/@TenantId/@p.Slug" 
+                       class="nav-item-link @(p.Slug == Slug ? "active-page" : "")">
+                        @p.Title
+                    </a>
+                </li>
+            }
+        </ul>
+    </nav>
+
+    <div class="main-wrapper">
+        <div class="content-box shadow">
+            @((MarkupString)currentPage.Content)
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; @DateTime.Now.Year @currentTenant?.Name • Dinamik Web Sistemi</p>
+    </footer>
+}
+
+@code {
+    [Parameter] public Guid TenantId { get; set; }
+    [Parameter] public string Slug { get; set; } = "";
+
+    private Tenant? currentTenant;
+    private Theme? currentTheme;
+    private Page? currentPage;
+    private List<Page> navPages = new();
+
+    protected override void OnParametersSet()
+    {
+        currentTenant = Context.Tenants.Find(TenantId);
+        if (currentTenant != null)
+        {
+            currentTheme = Context.Themes.Find(currentTenant.ThemeId);
+            navPages = Context.Pages
+                .Where(p => p.TenantId == TenantId && p.IsPublished)
+                .OrderBy(p => p.Title)
+                .ToList();
+
+            currentPage = navPages.FirstOrDefault(p => p.Slug == Slug);
+        }
+    }
+}

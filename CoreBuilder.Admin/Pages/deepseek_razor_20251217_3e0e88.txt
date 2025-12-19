@@ -1,0 +1,90 @@
+@page "/pages"
+@using CoreBuilder.Models
+@using CoreBuilder.Data
+@inject AppDbContext Context
+@inject NavigationManager Navigation
+
+<div class="container-fluid">
+    <h3 class="fw-bold text-dark mb-4">Sayfa İçeriği Yönetimi</h3>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white fw-bold">Site Seçimi</div>
+        <div class="card-body">
+            
+            <div class="mb-3">
+                <label class="form-label">Düzenlenecek Siteyi Seçin:</label>
+                <select class="form-select" @bind="SelectedTenantId" @bind:event="onchange">
+                    <option value="@Guid.Empty">-- Lütfen Bir Site Seçin --</option>
+                    @foreach (var tenant in Tenants)
+                    {
+                        <option value="@tenant.Id">@tenant.Name (@tenant.Domain)</option>
+                    }
+                </select>
+            </div>
+
+            @if (SelectedTenantId != Guid.Empty && SitePages.Any())
+            {
+                <h5 class="mt-4 pt-3 border-top fw-bold">Sayfalar (@SitePages.Count())</h5>
+                <p class="text-muted small">Düzenlemek istediğiniz sayfanın adına tıklayın.</p>
+
+                <div class="list-group">
+                    @foreach (var page in SitePages)
+                    {
+                        <button class="list-group-item list-group-item-action" @onclick="() => EditPage(page.Id)">
+                            <span class="oi oi-file me-2"></span>
+                            @page.Title 
+                            <span class="badge bg-secondary ms-3">/@page.Slug</span>
+                        </button>
+                    }
+                </div>
+            }
+            else if (SelectedTenantId != Guid.Empty && !SitePages.Any())
+            {
+                <div class="alert alert-warning mt-4">
+                    Seçtiğiniz site için henüz sayfa bulunamadı. Lütfen kontrol edin.
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Tenant> Tenants { get; set; } = new List<Tenant>();
+    private List<Page> SitePages { get; set; } = new List<Page>(); 
+    private Guid selectedTenantId = Guid.Empty;
+
+    private Guid SelectedTenantId
+    {
+        get => selectedTenantId;
+        set
+        {
+            selectedTenantId = value;
+            LoadPages();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Tenants = Context.Tenants.ToList();
+    }
+
+    private void LoadPages()
+    {
+        if (SelectedTenantId != Guid.Empty)
+        {
+            SitePages = Context.Pages
+                .Where(p => p.TenantId == SelectedTenantId)
+                .OrderBy(p => p.Title)
+                .ToList();
+        }
+        else
+        {
+            SitePages.Clear();
+        }
+    }
+    
+    private void EditPage(Guid pageId)
+    {
+        Navigation.NavigateTo($"/page/{pageId}");
+    }
+}

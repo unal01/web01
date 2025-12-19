@@ -1,0 +1,55 @@
+@page "/page/{PageId:guid}"
+@using CoreBuilder.Models
+@using CoreBuilder.Data
+@inject AppDbContext Context
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    @if (pageObj == null)
+    {
+        <div class="alert alert-info">Sayfa yükleniyor...</div>
+    }
+    else
+    {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold text-dark mb-0">Sayfa Düzenleme: @pageObj.Title</h3>
+            <button class="btn btn-outline-secondary" @onclick="GoBack">Geri Dön</button>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Başlık</label>
+                    <input class="form-control" @bind="pageObj.Title" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">İçerik (HTML)</label>
+                    <textarea class="form-control font-monospace" @bind="pageObj.Content" rows="12"></textarea>
+                </div>
+                <button class="btn btn-primary w-100" @onclick="SavePage">Kaydet</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid PageId { get; set; }
+    private Page? pageObj; // Değişken adını çakışma olmaması için pageObj yaptık
+
+    protected override void OnParametersSet()
+    {
+        pageObj = Context.Pages.Find(PageId);
+    }
+
+    private void SavePage()
+    {
+        if (pageObj != null)
+        {
+            Context.Pages.Update(pageObj);
+            Context.SaveChanges();
+            Navigation.NavigateTo("/pages");
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/pages");
+}

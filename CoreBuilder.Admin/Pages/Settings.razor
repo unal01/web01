@@ -1,0 +1,322 @@
+@page "/settings"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@inject SettingsService SettingsService
+
+<div class="container-fluid py-4">
+    <h3 class="fw-bold text-dark mb-4" style="font-size: 1.75rem;">⚙️ Sistem Ayarları</h3>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            <strong>✅ Başarılı!</strong> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            <strong>❌ Hata!</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (settings != null)
+    {
+        <div class="row">
+            <div class="col-md-3">
+                <div class="list-group sticky-top" style="top: 20px;">
+                    <button class="list-group-item list-group-item-action @(activeTab == "general" ? "active" : "")" @onclick='() => activeTab = "general"' style="font-size: 0.9rem;">
+                        <span class="oi oi-cog me-2"></span>Genel Ayarlar
+                    </button>
+                    <button class="list-group-item list-group-item-action @(activeTab == "seo" ? "active" : "")" @onclick='() => activeTab = "seo"' style="font-size: 0.9rem;">
+                        <span class="oi oi-magnifying-glass me-2"></span>SEO & Sosyal Medya
+                    </button>
+                    <button class="list-group-item list-group-item-action @(activeTab == "email" ? "active" : "")" @onclick='() => activeTab = "email"' style="font-size: 0.9rem;">
+                        <span class="oi oi-envelope-closed me-2"></span>Email
+                    </button>
+                    <button class="list-group-item list-group-item-action @(activeTab == "security" ? "active" : "")" @onclick='() => activeTab = "security"' style="font-size: 0.9rem;">
+                        <span class="oi oi-shield me-2"></span>Güvenlik
+                    </button>
+                    <button class="list-group-item list-group-item-action @(activeTab == "performance" ? "active" : "")" @onclick='() => activeTab = "performance"' style="font-size: 0.9rem;">
+                        <span class="oi oi-dashboard me-2"></span>Performans
+                    </button>
+                    <button class="list-group-item list-group-item-action @(activeTab == "backup" ? "active" : "")" @onclick='() => activeTab = "backup"' style="font-size: 0.9rem;">
+                        <span class="oi oi-data-transfer-download me-2"></span>Yedekleme
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-md-9">
+                @if (activeTab == "general")
+                {
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold">🏢 Genel Ayarlar</h5></div>
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Site Adı</label>
+                                    <input class="form-control" @bind="settings.SiteName" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Varsayılan Dil</label>
+                                    <select class="form-select" @bind="settings.DefaultLanguage">
+                                        <option value="tr-TR">Türkçe</option>
+                                        <option value="en-US">English</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold">Site Açıklaması</label>
+                                    <textarea class="form-control" @bind="settings.SiteDescription" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (activeTab == "seo")
+                {
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold">🔍 SEO & Sosyal Medya</h5></div>
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Google Analytics ID</label>
+                                    <input class="form-control" @bind="settings.GoogleAnalyticsId" placeholder="G-XXXXXXXXXX" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Meta Keywords</label>
+                                    <input class="form-control" @bind="settings.MetaKeywords" />
+                                </div>
+                            </div>
+                            <hr class="my-4" />
+                            <h6 class="fw-bold mb-3">Sosyal Medya</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Facebook</label>
+                                    <input class="form-control" @bind="settings.FacebookUrl" placeholder="https://facebook.com/page" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Twitter</label>
+                                    <input class="form-control" @bind="settings.TwitterUrl" placeholder="https://twitter.com/user" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Instagram</label>
+                                    <input class="form-control" @bind="settings.InstagramUrl" placeholder="https://instagram.com/user" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">YouTube</label>
+                                    <input class="form-control" @bind="settings.YouTubeUrl" placeholder="https://youtube.com/channel" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">LinkedIn</label>
+                                    <input class="form-control" @bind="settings.LinkedInUrl" placeholder="https://linkedin.com/company" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">WhatsApp</label>
+                                    <input class="form-control" @bind="settings.WhatsAppNumber" placeholder="+90 555 123 4567" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (activeTab == "email")
+                {
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold">📧 Email Ayarları</h5></div>
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label fw-bold">SMTP Sunucu</label>
+                                    <input class="form-control" @bind="settings.SmtpHost" placeholder="smtp.gmail.com" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Port</label>
+                                    <input type="number" class="form-control" @bind="settings.SmtpPort" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Kullanıcı Adı</label>
+                                    <input class="form-control" @bind="settings.SmtpUsername" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Şifre</label>
+                                    <input type="password" class="form-control" @bind="settings.SmtpPassword" />
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" @bind="settings.SmtpUseSsl" id="ssl">
+                                        <label class="form-check-label" for="ssl">SSL/TLS Kullan</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (activeTab == "security")
+                {
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold">🔒 Güvenlik</h5></div>
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Session Timeout (dk)</label>
+                                    <input type="number" class="form-control" @bind="settings.SessionTimeoutMinutes" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Min. Şifre Uzunluğu</label>
+                                    <input type="number" class="form-control" @bind="settings.PasswordMinLength" />
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" @bind="settings.Enable2FA" id="2fa">
+                                        <label class="form-check-label" for="2fa">İki Faktörlü Doğrulama</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" @bind="settings.ForceHttps" id="https">
+                                        <label class="form-check-label" for="https">HTTPS Zorunlu</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (activeTab == "performance")
+                {
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold">⚡ Performans</h5></div>
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Cache Süresi (dk)</label>
+                                    <input type="number" class="form-control" @bind="settings.CacheDurationMinutes" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Resim Kalitesi (%)</label>
+                                    <input type="number" class="form-control" @bind="settings.ImageCompressionQuality" />
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-warning" @onclick="ClearCache">
+                                        <span class="oi oi-trash me-2"></span>Cache Temizle
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (activeTab == "backup")
+                {
+                    <div class="card shadow-sm border-0">
+                        <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold">💾 Yedekleme & Bakım</h5></div>
+                        <div class="card-body p-4">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" @bind="settings.AutoBackupEnabled" id="backup">
+                                        <label class="form-check-label" for="backup">Otomatik Yedekleme</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Yedekleme Aralığı (gün)</label>
+                                    <input type="number" class="form-control" @bind="settings.BackupIntervalDays" />
+                                </div>
+                                <div class="col-12">
+                                    <hr />
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" @bind="settings.MaintenanceMode" id="maintenance">
+                                        <label class="form-check-label" for="maintenance"><strong>Bakım Modu</strong></label>
+                                    </div>
+                                    @if (settings.MaintenanceMode)
+                                    {
+                                        <textarea class="form-control mt-2" @bind="settings.MaintenanceMessage" rows="2" placeholder="Bakım mesajı"></textarea>
+                                    }
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-success me-2" @onclick="CreateBackup">
+                                        <span class="oi oi-data-transfer-download me-2"></span>Manuel Yedek Al
+                                    </button>
+                                    <button class="btn btn-info" @onclick="GenerateSitemap">
+                                        <span class="oi oi-map me-2"></span>Sitemap Oluştur
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="card shadow-sm border-0 mt-3">
+                    <div class="card-body p-4 text-end">
+                        <button class="btn btn-primary btn-lg px-5" @onclick="SaveSettings" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            else
+                            {
+                                <span class="oi oi-check me-2"></span>
+                            }
+                            Ayarları Kaydet
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private SystemSettings? settings;
+    private string activeTab = "general";
+    private bool isSaving = false;
+    private string successMessage = "";
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        settings = await SettingsService.GetSettingsAsync();
+    }
+
+    private async Task SaveSettings()
+    {
+        if (settings == null) return;
+        isSaving = true;
+        errorMessage = "";
+        successMessage = "";
+
+        try
+        {
+            await SettingsService.UpdateSettingsAsync(settings);
+            successMessage = "Ayarlar başarıyla kaydedildi!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Hata: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ClearCache()
+    {
+        await SettingsService.ClearCacheAsync();
+        successMessage = "Cache temizlendi!";
+    }
+
+    private async Task GenerateSitemap()
+    {
+        var result = await SettingsService.GenerateSitemapAsync();
+        successMessage = result;
+    }
+
+    private async Task CreateBackup()
+    {
+        var result = await SettingsService.CreateBackupAsync();
+        successMessage = result;
+    }
+}

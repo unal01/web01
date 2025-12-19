@@ -1,0 +1,57 @@
+@using CoreBuilder.Models
+@using CoreBuilder.Data
+@inject AppDbContext Context
+@inject NavigationManager Navigation
+
+<div class="card mb-3 shadow-sm border-0">
+    <div class="card-body">
+        <h5 class="card-title">Site Seçimi</h5>
+        
+        <select class="form-select mb-3" @bind="SelectedTenantId" @bind:event="onchange">
+            <option value="@Guid.Empty">-- Genel Dashboard --</option>
+            @foreach (var tenant in tenants)
+            {
+                <option value="@tenant.Id">@tenant.Name (@tenant.Domain)</option>
+            }
+        </select>
+
+        @if (SelectedTenantId != Guid.Empty)
+        {
+            <div class="alert alert-success">
+                Site: **@tenants.FirstOrDefault(t => t.Id == SelectedTenantId)?.Name** seçildi.
+            </div>
+        }
+        
+    </div>
+</div>
+
+@code {
+    private List<Tenant> tenants { get; set; } = new List<Tenant>();
+    
+    // CS0117 Hatası Çözüldü: Name kullanılıyor
+    public Tenant NewTenant { get; set; } = new Tenant { Domain = string.Empty, Name = string.Empty };
+
+    private Guid SelectedTenantId
+    {
+        get
+        {
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            var segment = uri.Segments.Skip(1).FirstOrDefault();
+
+            if (Guid.TryParse(segment, out Guid tenantId))
+            {
+                return tenantId;
+            }
+            return Guid.Empty;
+        }
+        set
+        {
+            // Yönlendirme mantığı buraya eklenebilir.
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        tenants = Context.Tenants.ToList();
+    }
+}

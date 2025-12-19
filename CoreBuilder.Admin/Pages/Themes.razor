@@ -1,0 +1,334 @@
+@page "/themes"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@using CoreBuilder.Data
+@inject ThemeService ThemeService
+@inject NavigationManager Navigation
+@inject AppDbContext Context
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold text-dark mb-0">Tema Yönetimi</h3>
+        <button class="btn btn-primary shadow-sm" @onclick="ToggleForm">
+            <span class="oi @(showForm ? "oi-x" : "oi-plus") me-2"></span>
+            @(showForm ? "Kapat" : "Yeni Tema Ekle")
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>Hata!</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <strong>Başarılı!</strong> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (showForm)
+    {
+        <div class="card shadow-sm border-0 mb-4 bg-light">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">@(editingThemeId.HasValue ? "Temayı Düzenle" : "Yeni Tema Oluştur")</h5>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Tema Adı *</label>
+                        <input class="form-control @(string.IsNullOrWhiteSpace(themeName) && attemptedSave ? "is-invalid" : "")" 
+                               @bind="themeName" 
+                               placeholder="Örn: Modern Mavi" />
+                        @if (string.IsNullOrWhiteSpace(themeName) && attemptedSave)
+                        {
+                            <div class="invalid-feedback">Tema adı gereklidir.</div>
+                        }
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">Ana Renk</label>
+                        <input type="color" class="form-control form-control-color w-100" @bind="primaryColor" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">İkincil Renk</label>
+                        <input type="color" class="form-control form-control-color w-100" @bind="secondaryColor" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Yazı Tipi</label>
+                        <select class="form-select" @bind="fontFamily">
+                            <option value="Arial">Arial</option>
+                            <option value="'Segoe UI'">Segoe UI</option>
+                            <option value="Roboto">Roboto</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Tahoma">Tahoma</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-success w-100 shadow-sm" @onclick="SaveTheme" disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            else
+                            {
+                                <span class="oi oi-check me-2"></span>
+                            }
+                            @(editingThemeId.HasValue ? "Güncelle" : "Kaydet")
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="defaultCheck" @bind="isDefault">
+                    <label class="form-check-label small" for="defaultCheck">Varsayılan Tema Olsun</label>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3">
+            <span class="fw-bold text-secondary">Kayıtlı Temalar (@themes.Count)</span>
+        </div>
+        <div class="card-body p-0">
+            @if (themes != null && themes.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="ps-4">Tema Adı</th>
+                                <th>Renk Paleti</th>
+                                <th>Yazı Tipi</th>
+                                <th>Durum</th>
+                                <th class="text-end pe-4">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var theme in themes)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-bold">@theme.Name</td>
+                                    <td>
+                                        <div class="d-flex gap-1">
+                                            <div class="rounded-circle border" style="width: 24px; height: 24px; background-color: @theme.PrimaryColor" title="Ana Renk: @theme.PrimaryColor"></div>
+                                            <div class="rounded-circle border" style="width: 24px; height: 24px; background-color: @theme.SecondaryColor" title="İkincil Renk: @theme.SecondaryColor"></div>
+                                        </div>
+                                    </td>
+                                    <td><code class="small">@theme.FontFamily</code></td>
+                                    <td>
+                                        @if (theme.IsDefault)
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">Varsayılan</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-muted border">Standart</span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-primary me-2" 
+                                                @onclick="() => EditTheme(theme)"
+                                                title="Düzenle">
+                                            <span class="oi oi-pencil"></span>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" 
+                                                @onclick="() => DeleteTheme(theme.Id)"
+                                                disabled="@(deletingId == theme.Id)"
+                                                title="Sil">
+                                            @if (deletingId == theme.Id)
+                                            {
+                                                <span class="spinner-border spinner-border-sm"></span>
+                                            }
+                                            else
+                                            {
+                                                <span class="oi oi-trash"></span>
+                                            }
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (isLoading)
+            {
+                <div class="p-5 text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Yükleniyor...</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="p-5 text-center">
+                    <span class="oi oi-info text-muted" style="font-size: 3rem;"></span>
+                    <p class="text-muted mt-3">Henüz hiç tema eklenmemiş.</p>
+                    <button class="btn btn-primary btn-sm" @onclick="ToggleForm">
+                        <span class="oi oi-plus me-2"></span>İlk Temayı Ekle
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Theme> themes = new();
+    
+    private string themeName = string.Empty;
+    private string primaryColor = "#007bff";
+    private string secondaryColor = "#6c757d";
+    private string fontFamily = "Arial";
+    private bool isDefault = false;
+    private Guid? editingThemeId = null;
+    
+    private bool showForm = false;
+    private bool isSaving = false;
+    private bool isLoading = true;
+    private bool attemptedSave = false;
+    private Guid? deletingId = null;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadThemes();
+    }
+
+    private async Task LoadThemes()
+    {
+        try
+        {
+            isLoading = true;
+            themes = ThemeService.GetAllThemes();
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Temalar yüklenirken hata oluştu: {ex.Message}";
+            isLoading = false;
+        }
+    }
+
+    private void ToggleForm()
+    {
+        showForm = !showForm;
+        if (showForm)
+        {
+            ClearForm();
+        }
+    }
+
+    private void ClearForm()
+    {
+        themeName = string.Empty;
+        primaryColor = "#007bff";
+        secondaryColor = "#6c757d";
+        fontFamily = "Arial";
+        isDefault = false;
+        editingThemeId = null;
+        attemptedSave = false;
+        errorMessage = string.Empty;
+    }
+
+    private void EditTheme(Theme theme)
+    {
+        themeName = theme.Name;
+        primaryColor = theme.PrimaryColor;
+        secondaryColor = theme.SecondaryColor;
+        fontFamily = theme.FontFamily;
+        isDefault = theme.IsDefault;
+        editingThemeId = theme.Id;
+        showForm = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+    }
+
+    private async Task SaveTheme()
+    {
+        attemptedSave = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(themeName))
+        {
+            errorMessage = "Tema adı boş bırakılamaz.";
+            return;
+        }
+
+        isSaving = true;
+        try 
+        {
+            if (editingThemeId.HasValue)
+            {
+                // Güncelleme
+                var existingTheme = await Context.Themes.FindAsync(editingThemeId.Value);
+                if (existingTheme != null)
+                {
+                    existingTheme.Name = themeName;
+                    existingTheme.PrimaryColor = primaryColor;
+                    existingTheme.SecondaryColor = secondaryColor;
+                    existingTheme.FontFamily = fontFamily;
+                    existingTheme.IsDefault = isDefault;
+                    
+                    await Context.SaveChangesAsync();
+                    successMessage = $"'{themeName}' teması başarıyla güncellendi!";
+                }
+            }
+            else
+            {
+                // Yeni ekleme
+                var newTheme = new Theme
+                {
+                    Name = themeName,
+                    PrimaryColor = primaryColor,
+                    SecondaryColor = secondaryColor,
+                    FontFamily = fontFamily,
+                    IsDefault = isDefault
+                };
+
+                await ThemeService.CreateThemeAsync(newTheme);
+                successMessage = $"'{themeName}' teması başarıyla oluşturuldu!";
+            }
+            
+            ClearForm();
+            showForm = false;
+            await LoadThemes();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Tema kaydedilirken hata oluştu: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteTheme(Guid id)
+    {
+        deletingId = id;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        try
+        {
+            var theme = themes.FirstOrDefault(t => t.Id == id);
+            await ThemeService.DeleteThemeAsync(id);
+            
+            successMessage = $"'{theme?.Name}' teması silindi.";
+            await LoadThemes();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Tema silinirken hata oluştu: {ex.Message}";
+        }
+        finally
+        {
+            deletingId = null;
+        }
+    }
+}

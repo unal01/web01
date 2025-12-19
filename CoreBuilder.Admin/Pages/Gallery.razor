@@ -1,0 +1,192 @@
+@page "/gallery"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@using CoreBuilder.Data
+@using IOPath = System.IO.Path
+@inject ImageService ImageService
+@inject AppDbContext Context
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid py-4">
+    <h3 class="fw-bold text-dark mb-4" style="font-size: 1.75rem;">Medya Kütüphanesi</h3>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>Hata!</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <strong>Başarılı!</strong> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <label class="form-label fw-bold mb-2" style="font-size: 0.95rem;">Site Seçin:</label>
+            <select class="form-select mb-3" @bind="SelectedTenantId" @bind:event="onchange" style="font-size: 0.95rem;">
+                <option value="@Guid.Empty">-- Seçiniz --</option>
+                @foreach (var t in Tenants) { <option value="@t.Id">@t.Name</option> }
+            </select>
+
+            @if (SelectedTenantId != Guid.Empty)
+            {
+                <div class="p-3 border-2 border-dashed rounded text-center bg-light">
+                    <InputFile OnChange="HandleFileUpload" class="form-control" accept="image/*" style="font-size: 0.95rem;" />
+                    <p class="mt-2 small text-muted mb-0" style="font-size: 0.85rem;">Sadece resim dosyaları yüklenebilir (JPG, PNG, GIF, WebP). Maksimum 5MB.</p>
+                    @if (isUploading)
+                    {
+                        <div class="spinner-border spinner-border-sm text-primary mt-2" role="status">
+                            <span class="visually-hidden">Yükleniyor...</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (images.Any())
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3">
+                <span class="fw-bold text-secondary" style="font-size: 1rem;">Yüklenen Medya Dosyaları (@images.Count)</span>
+            </div>
+            <div class="card-body p-4">
+                <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-3">
+                    @foreach (var img in images)
+                    {
+                        <div class="col">
+                            <div class="card h-100 shadow-sm border-0 gallery-card">
+                                <img src="@img.FilePath" class="card-img-top p-2 rounded" style="object-fit: cover; height: 150px;" alt="@img.FileName" />
+                                <div class="card-footer bg-white border-0 text-center p-2">
+                                    <small class="text-muted d-block mb-2" title="@img.FileName" style="font-size: 0.8rem;">@TruncateFileName(img.FileName)</small>
+                                    <button class="btn btn-sm btn-outline-primary w-100" @onclick="() => CopyToClipboard(img.FilePath)" style="font-size: 0.85rem;">
+                                        <span class="oi oi-clipboard"></span> URL Kopyala
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (SelectedTenantId != Guid.Empty)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-5 text-center text-muted">
+                <span class="oi oi-info mb-2" style="font-size: 2rem;"></span>
+                <p style="font-size: 0.95rem;">Bu site için henüz resim yüklenmemiş.</p>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Tenant> Tenants = new();
+    private List<ImageEntry> images = new();
+    private Guid selectedTenantId;
+    private bool isUploading = false;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    private Guid SelectedTenantId 
+    { 
+        get => selectedTenantId; 
+        set 
+        { 
+            selectedTenantId = value; 
+            LoadImages(); 
+            errorMessage = string.Empty;
+            successMessage = string.Empty;
+        } 
+    }
+
+    protected override void OnInitialized() => Tenants = Context.Tenants.ToList();
+
+    private void LoadImages()
+    {
+        try
+        {
+            images = ImageService.GetImagesByTenant(SelectedTenantId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Resimler yüklenirken hata oluştu: {ex.Message}";
+            images = new List<ImageEntry>();
+        }
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        isUploading = true;
+
+        try
+        {
+            var file = e.File;
+
+            // Dosya tipi kontrolü
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp" };
+            var extension = IOPath.GetExtension(file.Name).ToLowerInvariant();
+            
+            if (System.Array.IndexOf(allowedExtensions, extension) == -1)
+            {
+                errorMessage = "Sadece resim dosyaları yüklenebilir (JPG, PNG, GIF, WebP, BMP).";
+                return;
+            }
+
+            // Dosya boyutu kontrolü (5MB)
+            if (file.Size > 5 * 1024 * 1024)
+            {
+                errorMessage = "Dosya boyutu 5MB'dan büyük olamaz.";
+                return;
+            }
+
+            await ImageService.UploadImageAsync(file, SelectedTenantId);
+            successMessage = $"'{file.Name}' başarıyla yüklendi!";
+            LoadImages();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Dosya yüklenirken hata oluştu: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private async Task CopyToClipboard(string url)
+    {
+        try
+        {
+            var fullUrl = $"{NavigationManager.BaseUri.TrimEnd('/')}{url}";
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", fullUrl);
+            successMessage = "URL panoya kopyalandı!";
+            
+            await Task.Delay(3000);
+            successMessage = string.Empty;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"URL kopyalanamadı: {ex.Message}";
+        }
+    }
+
+    private string TruncateFileName(string fileName, int maxLength = 20)
+    {
+        if (string.IsNullOrEmpty(fileName) || fileName.Length <= maxLength)
+            return fileName;
+        
+        return fileName.Substring(0, maxLength - 3) + "...";
+    }
+}

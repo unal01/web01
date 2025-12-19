@@ -1,0 +1,328 @@
+@page "/users"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@using CoreBuilder.Data
+@inject UserService UserService
+@inject AppDbContext Context
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold text-dark mb-0">👥 Kullanıcı Yönetimi</h3>
+        <button class="btn btn-primary shadow-sm" @onclick="OpenAddUserModal">
+            <span class="oi oi-plus me-2"></span>Yeni Kullanıcı Ekle
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            <strong>Hata!</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            <strong>Başarılı!</strong> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            @if (users.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="ps-4">Kullanıcı Adı</th>
+                                <th>Email</th>
+                                <th>Tam Ad</th>
+                                <th>Rol</th>
+                                <th>Durum</th>
+                                <th>Domain Yetkileri</th>
+                                <th class="text-end pe-4">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var user in users)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-bold">@user.Username</td>
+                                    <td>@user.Email</td>
+                                    <td>@(user.FullName ?? "-")</td>
+                                    <td>
+                                        @if (user.IsSuperAdmin)
+                                        {
+                                            <span class="badge bg-danger">Super Admin</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-info">Kullanıcı</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (user.IsActive)
+                                        {
+                                            <span class="badge bg-success">Aktif</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Pasif</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">@user.TenantRoles.Count domain</span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-success me-1" @onclick="() => ManagePermissions(user)" title="Yetkileri Yönet">
+                                            <span class="oi oi-lock-unlocked"></span>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditUser(user)" title="Düzenle">
+                                            <span class="oi oi-pencil"></span>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteUser(user.Id)" title="Sil">
+                                            <span class="oi oi-trash"></span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="p-5 text-center text-muted">
+                    <span class="oi oi-people mb-2" style="font-size: 2rem;"></span>
+                    <p>Henüz kullanıcı eklenmemiş.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@* Yeni Kullanıcı Modal *@
+@if (showAddUserModal)
+{
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Yeni Kullanıcı Ekle</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseAddUserModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Kullanıcı Adı *</label>
+                        <input class="form-control" @bind="newUsername" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email *</label>
+                        <input type="email" class="form-control" @bind="newEmail" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Şifre *</label>
+                        <input type="password" class="form-control" @bind="newPassword" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tam Ad</label>
+                        <input class="form-control" @bind="newFullName" />
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" @bind="newIsSuperAdmin" />
+                        <label class="form-check-label">Super Admin Yetkisi</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseAddUserModal">İptal</button>
+                    <button class="btn btn-primary" @onclick="SaveNewUser">Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Domain Yetkilendirme Modal *@
+@if (showPermissionsModal && selectedUser != null)
+{
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">@selectedUser.Username - Domain Yetkileri</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="ClosePermissionsModal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6 class="mb-3">Yeni Yetki Ekle</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <select class="form-select" @bind="selectedTenantId">
+                                <option value="">-- Domain Seçin --</option>
+                                @foreach (var tenant in tenants)
+                                {
+                                    <option value="@tenant.Id">@tenant.Name (@tenant.Domain)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select" @bind="selectedRole">
+                                <option value="@Roles.Viewer">Viewer (Görüntüleme)</option>
+                                <option value="@Roles.Editor">Editor (Düzenleme)</option>
+                                <option value="@Roles.TenantAdmin">Admin (Tam Yetki)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-success w-100" @onclick="AddPermission">Ekle</button>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <h6 class="mb-3">Mevcut Yetkiler</h6>
+                    @if (userPermissions.Any())
+                    {
+                        <div class="list-group">
+                            @foreach (var perm in userPermissions)
+                            {
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>@perm.Tenant?.Name</strong> <br />
+                                        <small class="text-muted">@perm.Tenant?.Domain</small>
+                                    </div>
+                                    <div>
+                                        <span class="badge bg-info me-2">@perm.Role</span>
+                                        <button class="btn btn-sm btn-danger" @onclick="() => RemovePermission(perm.Id)">
+                                            <span class="oi oi-x"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center">Bu kullanıcının henüz domain yetkisi yok.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<User> users = new();
+    private List<Tenant> tenants = new();
+    private List<UserTenantRole> userPermissions = new();
+
+    private bool showAddUserModal = false;
+    private bool showPermissionsModal = false;
+    
+    private string newUsername = "";
+    private string newEmail = "";
+    private string newPassword = "";
+    private string newFullName = "";
+    private bool newIsSuperAdmin = false;
+
+    private User? selectedUser;
+    private string selectedTenantId = "";
+    private string selectedRole = Roles.Viewer;
+
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        users = await UserService.GetAllUsersAsync();
+        tenants = Context.Tenants.ToList();
+    }
+
+    private void OpenAddUserModal()
+    {
+        newUsername = "";
+        newEmail = "";
+        newPassword = "";
+        newFullName = "";
+        newIsSuperAdmin = false;
+        showAddUserModal = true;
+    }
+
+    private void CloseAddUserModal() => showAddUserModal = false;
+
+    private async Task SaveNewUser()
+    {
+        try
+        {
+            await UserService.CreateUserAsync(newUsername, newEmail, newPassword, newFullName, newIsSuperAdmin);
+            successMessage = "Kullanıcı başarıyla oluşturuldu!";
+            showAddUserModal = false;
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Hata: {ex.Message}";
+        }
+    }
+
+    private async Task ManagePermissions(User user)
+    {
+        selectedUser = user;
+        userPermissions = await UserService.GetUserTenantRolesAsync(user.Id);
+        showPermissionsModal = true;
+    }
+
+    private void ClosePermissionsModal()
+    {
+        showPermissionsModal = false;
+        selectedUser = null;
+    }
+
+    private async Task AddPermission()
+    {
+        if (string.IsNullOrEmpty(selectedTenantId) || selectedUser == null)
+            return;
+
+        try
+        {
+            await UserService.AssignTenantRoleAsync(selectedUser.Id, Guid.Parse(selectedTenantId), selectedRole);
+            userPermissions = await UserService.GetUserTenantRolesAsync(selectedUser.Id);
+            successMessage = "Yetki eklendi!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Hata: {ex.Message}";
+        }
+    }
+
+    private async Task RemovePermission(Guid roleId)
+    {
+        var role = userPermissions.FirstOrDefault(p => p.Id == roleId);
+        if (role != null && selectedUser != null)
+        {
+            await UserService.RemoveTenantRoleAsync(selectedUser.Id, role.TenantId);
+            userPermissions = await UserService.GetUserTenantRolesAsync(selectedUser.Id);
+            successMessage = "Yetki kaldırıldı!";
+        }
+    }
+
+    private async Task DeleteUser(Guid userId)
+    {
+        if (await UserService.DeleteUserAsync(userId))
+        {
+            successMessage = "Kullanıcı silindi!";
+            await LoadData();
+        }
+    }
+
+    private void EditUser(User user)
+    {
+        // TODO: Edit modal implementasyonu
+    }
+}

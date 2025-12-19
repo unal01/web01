@@ -1,0 +1,182 @@
+@page "/announcements"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@using CoreBuilder.Data
+@inject ContentService ContentService
+@inject AppDbContext Context
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold text-dark mb-0" style="font-size: 1.75rem;">📢 Duyuru Yönetimi</h3>
+        @if (SelectedTenantId != Guid.Empty)
+        {
+            <button class="btn btn-primary shadow-sm" @onclick="OpenAddModal">
+                <span class="oi oi-plus me-2"></span>Yeni Duyuru Ekle
+            </button>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            <strong>✅</strong> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <label class="form-label fw-bold mb-2">Site Seçin:</label>
+            <select class="form-select" @bind="SelectedTenantId" @bind:event="onchange">
+                <option value="@Guid.Empty">-- Seçiniz --</option>
+                @foreach (var t in Tenants) { <option value="@t.Id">@t.Name</option> }
+            </select>
+        </div>
+    </div>
+
+    @if (SelectedTenantId != Guid.Empty && announcements.Any())
+    {
+        <div class="row g-3">
+            @foreach (var announcement in announcements)
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card shadow-sm h-100 @(announcement.IsImportant ? "border-danger" : "")">
+                        @if (announcement.IsImportant)
+                        {
+                            <div class="card-header bg-danger text-white py-2">
+                                <small><strong>⚠️ ÖNEMLİ DUYURU</strong></small>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(announcement.ImageUrl))
+                        {
+                            <img src="@announcement.ImageUrl" class="card-img-top" style="height: 150px; object-fit: cover;" />
+                        }
+                        <div class="card-body">
+                            <h6 class="card-title fw-bold">@announcement.Title</h6>
+                            <p class="card-text small text-muted">@announcement.Content.Substring(0, Math.Min(100, announcement.Content.Length))...</p>
+                            <small class="text-muted">@announcement.PublishDate.ToString("dd MMM yyyy")</small>
+                        </div>
+                        <div class="card-footer bg-white border-0">
+                            <button class="btn btn-sm btn-outline-danger w-100" @onclick="() => DeleteAnnouncement(announcement.Id)">
+                                <span class="oi oi-trash me-2"></span>Sil
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (SelectedTenantId != Guid.Empty)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-5 text-center text-muted">
+                <span class="oi oi-megaphone" style="font-size: 2rem;"></span>
+                <p>Henüz duyuru yok.</p>
+            </div>
+        </div>
+    }
+</div>
+
+@if (showAddModal)
+{
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Yeni Duyuru</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Başlık</label>
+                        <input class="form-control" @bind="newTitle" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">İçerik</label>
+                        <textarea class="form-control" @bind="newContent" rows="4"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Resim URL (opsiyonel)</label>
+                        <input class="form-control" @bind="newImageUrl" />
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" @bind="newIsImportant" id="importantCheck">
+                        <label class="form-check-label" for="importantCheck">Önemli Duyuru</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">İptal</button>
+                    <button class="btn btn-primary" @onclick="SaveAnnouncement">Yayınla</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Tenant> Tenants = new();
+    private List<Announcement> announcements = new();
+    private Guid selectedTenantId;
+    private bool showAddModal = false;
+    private string successMessage = "";
+
+    private string newTitle = "";
+    private string newContent = "";
+    private string newImageUrl = "";
+    private bool newIsImportant = false;
+
+    private Guid SelectedTenantId
+    {
+        get => selectedTenantId;
+        set { selectedTenantId = value; LoadAnnouncements(); }
+    }
+
+    protected override void OnInitialized() => Tenants = Context.Tenants.ToList();
+
+    private async void LoadAnnouncements()
+    {
+        if (SelectedTenantId != Guid.Empty)
+        {
+            announcements = await ContentService.GetAnnouncementsAsync(SelectedTenantId);
+            StateHasChanged();
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        newTitle = "";
+        newContent = "";
+        newImageUrl = "";
+        newIsImportant = false;
+        showAddModal = true;
+    }
+
+    private void CloseModal() => showAddModal = false;
+
+    private async Task SaveAnnouncement()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle) || string.IsNullOrWhiteSpace(newContent))
+            return;
+
+        var announcement = new Announcement
+        {
+            TenantId = SelectedTenantId,
+            Title = newTitle,
+            Content = newContent,
+            ImageUrl = newImageUrl,
+            IsImportant = newIsImportant
+        };
+
+        await ContentService.CreateAnnouncementAsync(announcement);
+        successMessage = "Duyuru yayınlandı!";
+        showAddModal = false;
+        LoadAnnouncements();
+    }
+
+    private async Task DeleteAnnouncement(Guid id)
+    {
+        await ContentService.DeleteAnnouncementAsync(id);
+        successMessage = "Duyuru silindi!";
+        LoadAnnouncements();
+    }
+}

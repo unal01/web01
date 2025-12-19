@@ -1,0 +1,420 @@
+@page "/demo"
+@page "/demo/{TenantIdParam}"
+@page "/demo/{TenantIdParam}/{PageSlug}"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@using CoreBuilder.Data
+@inject ContentService ContentService
+@inject AppDbContext Context
+@inject NavigationManager Nav
+@implements IDisposable
+
+<PageTitle>Demo Web Sitesi</PageTitle>
+
+<style>
+    .demo-container {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .top-nav {
+        background: #fff;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        padding: 15px 0;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+    
+    .nav-brand {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #007bff;
+        text-decoration: none;
+    }
+    
+    .nav-menu {
+        display: flex;
+        gap: 20px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .nav-link {
+        color: #333;
+        text-decoration: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        transition: background 0.3s;
+    }
+    
+    .nav-link:hover {
+        background: #f8f9fa;
+    }
+    
+    .hero-slider {
+        position: relative;
+        height: 500px;
+        background: #000;
+        overflow: hidden;
+    }
+    
+    .hero-slide {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background-size: cover;
+        background-position: center;
+        display: none;
+    }
+    
+    .hero-slide.active { display: block; }
+    
+    .hero-content {
+        position: absolute;
+        bottom: 50px;
+        left: 50px;
+        color: white;
+        text-shadow: 2px 2px 8px rgba(0,0,0,0.7);
+        z-index: 5;
+    }
+    
+    .hero-content h1 { font-size: 3rem; margin: 0; font-weight: bold; }
+    .hero-content p { font-size: 1.2rem; margin: 10px 0; }
+    
+    .hero-btn {
+        display: inline-block;
+        padding: 12px 30px;
+        background: #007bff;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        margin-top: 15px;
+        font-weight: bold;
+    }
+    
+    .page-content {
+        padding: 60px 20px;
+        max-width: 1000px;
+        margin: 0 auto;
+        line-height: 1.8;
+    }
+    
+    .page-content h1 {
+        font-size: 2.5rem;
+        margin-bottom: 30px;
+        color: #333;
+    }
+    
+    .page-content img {
+        max-width: 100%;
+        height: auto;
+    }
+    
+    .announcements-section {
+        padding: 60px 20px;
+        background: #f8f9fa;
+    }
+    
+    .section-title {
+        text-align: center;
+        font-size: 2.5rem;
+        margin-bottom: 40px;
+        color: #333;
+        font-weight: bold;
+    }
+    
+    .announcement-card {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+        transition: transform 0.3s;
+    }
+    
+    .announcement-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+    
+    .announcement-card.important {
+        border: 3px solid #dc3545;
+    }
+    
+    .announcement-image {
+        width: 100%;
+        height: 250px;
+        object-fit: cover;
+    }
+    
+    .announcement-content {
+        padding: 25px;
+    }
+    
+    .announcement-badge {
+        display: inline-block;
+        padding: 5px 15px;
+        background: #dc3545;
+        color: white;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    
+    .announcement-title {
+        font-size: 1.5rem;
+        margin: 10px 0;
+        color: #333;
+        font-weight: 600;
+    }
+    
+    .nav-dots {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        z-index: 10;
+    }
+    
+    .nav-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.5);
+        cursor: pointer;
+        border: 2px solid white;
+    }
+    
+    .nav-dot.active { background: white; }
+    
+    .site-selector {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 80px 20px;
+        text-align: center;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+<div class="demo-container">
+    @if (string.IsNullOrEmpty(TenantIdParam))
+    {
+        <div class="site-selector">
+            <div class="container">
+                <h2>🌐 Demo Web Sitesi</h2>
+                <p class="mb-5" style="font-size: 1.2rem;">Görmek istediğiniz siteyi seçin</p>
+                <div class="row justify-content-center">
+                    @foreach (var tenant in tenants)
+                    {
+                        <div class="col-md-4 mb-3">
+                            <button class="btn btn-light btn-lg w-100 py-4" @onclick="() => SelectTenant(tenant.Id)">
+                                <h4 class="mb-1">@tenant.Name</h4>
+                                <small class="text-muted">@tenant.Domain</small>
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="top-nav">
+            <div class="container d-flex justify-content-between align-items-center">
+                <a href="/demo/@TenantIdParam" class="nav-brand">@(currentTenant?.Name ?? "Demo Site")</a>
+                <ul class="nav-menu d-flex align-items-center">
+                    <li><a href="/demo/@TenantIdParam" class="nav-link">🏠 Ana Sayfa</a></li>
+                    @foreach (var singlePage in pages)
+                    {
+                        var pageUrl = $"/demo/{TenantIdParam}/{singlePage.Slug}";
+                        <li><a href="@pageUrl" class="nav-link">@singlePage.Title</a></li>
+                    }
+                </ul>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(PageSlug))
+        {
+            <div class="page-content">
+                @if (currentPage != null)
+                {
+                    <h1>@currentPage.Title</h1>
+                    @((MarkupString)currentPage.Content)
+                }
+                else
+                {
+                    <div class="alert alert-warning">Sayfa bulunamadı.</div>
+                }
+            </div>
+        }
+        else
+        {
+            @if (sliders.Any())
+            {
+                <div class="hero-slider">
+                    @for (int i = 0; i < sliders.Count; i++)
+                    {
+                        var slider = sliders[i];
+                        <div class="hero-slide @(i == currentSlide ? "active" : "")" style="background-image: url('@slider.ImageUrl')">
+                            <div class="hero-content">
+                                <h1>@slider.Title</h1>
+                                <p>@slider.Description</p>
+                                @if (!string.IsNullOrEmpty(slider.ButtonText))
+                                {
+                                    <a href="@slider.ButtonLink" class="hero-btn">@slider.ButtonText</a>
+                                }
+                            </div>
+                        </div>
+                    }
+                    
+                    @if (sliders.Count > 1)
+                    {
+                        <div class="nav-dots">
+                            @for (int i = 0; i < sliders.Count; i++)
+                            {
+                                var index = i;
+                                <div class="nav-dot @(i == currentSlide ? "active" : "")" @onclick="() => ChangeSlide(index)"></div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="announcements-section">
+                <div class="container">
+                    <h2 class="section-title">📢 Duyurular</h2>
+                    
+                    @if (announcements.Any())
+                    {
+                        <div class="row">
+                            @foreach (var announcement in announcements)
+                            {
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="announcement-card @(announcement.IsImportant ? "important" : "")">
+                                        @if (!string.IsNullOrEmpty(announcement.ImageUrl))
+                                        {
+                                            <img src="@announcement.ImageUrl" class="announcement-image" alt="@announcement.Title" />
+                                        }
+                                        <div class="announcement-content">
+                                            @if (announcement.IsImportant)
+                                            {
+                                                <span class="announcement-badge">⚠️ ÖNEMLİ</span>
+                                            }
+                                            <h3 class="announcement-title">@announcement.Title</h3>
+                                            <p class="announcement-text">@announcement.Content</p>
+                                            <small class="text-muted">
+                                                📅 @announcement.PublishDate.ToString("dd MMMM yyyy")
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="text-center py-5 bg-light">
+            <button class="btn btn-secondary btn-lg me-2" @onclick="BackToSelector">
+                ← Başka Site
+            </button>
+            <a href="/" class="btn btn-primary btn-lg">
+                ⚙️ Admin Panel
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? TenantIdParam { get; set; }
+    [Parameter] public string? PageSlug { get; set; }
+    
+    private List<Tenant> tenants = new();
+    private Tenant? currentTenant;
+    private List<Slider> sliders = new();
+    private List<Announcement> announcements = new();
+    private List<Page> pages = new();
+    private Page? currentPage;
+    private int currentSlide = 0;
+    private System.Threading.Timer? sliderTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        tenants = Context.Tenants.ToList();
+        
+        if (!string.IsNullOrEmpty(TenantIdParam) && Guid.TryParse(TenantIdParam, out var tenantGuid))
+        {
+            await LoadContent(tenantGuid);
+            StartSliderTimer();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrEmpty(TenantIdParam) && Guid.TryParse(TenantIdParam, out var tenantGuid))
+        {
+            await LoadContent(tenantGuid);
+            
+            if (!string.IsNullOrEmpty(PageSlug))
+            {
+                currentPage = Context.Pages.FirstOrDefault(p => p.TenantId == tenantGuid && p.Slug == PageSlug && p.IsPublished);
+            }
+        }
+    }
+
+    private void SelectTenant(Guid id)
+    {
+        Nav.NavigateTo($"/demo/{id}");
+    }
+
+    private void BackToSelector()
+    {
+        Nav.NavigateTo("/demo");
+    }
+
+    private async Task LoadContent(Guid tenantId)
+    {
+        currentTenant = Context.Tenants.FirstOrDefault(t => t.Id == tenantId);
+        sliders = await ContentService.GetSlidersAsync(tenantId);
+        announcements = await ContentService.GetAnnouncementsAsync(tenantId);
+        pages = Context.Pages.Where(p => p.TenantId == tenantId && p.IsPublished).ToList();
+    }
+
+    private void ChangeSlide(int index)
+    {
+        currentSlide = index;
+        StateHasChanged();
+    }
+
+    private void StartSliderTimer()
+    {
+        sliderTimer?.Dispose();
+        
+        if (sliders.Count > 1)
+        {
+            sliderTimer = new System.Threading.Timer((_) =>
+            {
+                InvokeAsync(() =>
+                {
+                    currentSlide = (currentSlide + 1) % sliders.Count;
+                    StateHasChanged();
+                });
+            }, null, 5000, 5000);
+        }
+    }
+
+    public void Dispose()
+    {
+        sliderTimer?.Dispose();
+    }
+}

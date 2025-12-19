@@ -1,0 +1,233 @@
+@page "/sliders"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@using CoreBuilder.Data
+@inject ContentService ContentService
+@inject AppDbContext Context
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold text-dark mb-0" style="font-size: 1.75rem;">🎞️ Slider Yönetimi</h3>
+        @if (SelectedTenantId != Guid.Empty)
+        {
+            <button class="btn btn-primary shadow-sm" @onclick="OpenAddModal">
+                <span class="oi oi-plus me-2"></span>Yeni Slide Ekle
+            </button>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            <strong>✅</strong> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <label class="form-label fw-bold mb-2" style="font-size: 0.95rem;">Site Seçin:</label>
+            <select class="form-select" @bind="SelectedTenantId" @bind:event="onchange" style="font-size: 0.95rem;">
+                <option value="@Guid.Empty">-- Seçiniz --</option>
+                @foreach (var t in Tenants) { <option value="@t.Id">@t.Name</option> }
+            </select>
+        </div>
+    </div>
+
+    @if (SelectedTenantId != Guid.Empty)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3">
+                <span class="fw-bold text-secondary" style="font-size: 1rem;">Slider Listesi (@sliders.Count)</span>
+            </div>
+            <div class="card-body p-0">
+                @if (sliders.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4" style="font-size: 0.9rem;">Görsel</th>
+                                    <th style="font-size: 0.9rem;">Başlık</th>
+                                    <th style="font-size: 0.9rem;">Açıklama</th>
+                                    <th style="font-size: 0.9rem;">Sıra</th>
+                                    <th style="font-size: 0.9rem;">Durum</th>
+                                    <th class="text-end pe-4" style="font-size: 0.9rem;">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var slide in sliders)
+                                {
+                                    <tr>
+                                        <td class="ps-4">
+                                            <img src="@slide.ImageUrl" style="width: 80px; height: 50px; object-fit: cover;" class="rounded" />
+                                        </td>
+                                        <td style="font-size: 0.95rem;">@slide.Title</td>
+                                        <td style="font-size: 0.85rem;" class="text-muted">
+                                            @if (!string.IsNullOrEmpty(slide.Description))
+                                            {
+                                                @slide.Description.Substring(0, Math.Min(50, slide.Description.Length))
+                                            }
+                                        </td>
+                                        <td><span class="badge bg-primary">@slide.Order</span></td>
+                                        <td>
+                                            @if (slide.IsActive)
+                                            {
+                                                <span class="badge bg-success">Aktif</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Pasif</span>
+                                            }
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSlider(slide.Id)">
+                                                <span class="oi oi-trash"></span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-5 text-center text-muted">
+                        <span class="oi oi-image" style="font-size: 2rem;"></span>
+                        <p style="font-size: 0.95rem;">Henüz slide eklenmemiş.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (showAddModal)
+{
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5); z-index: 1050;">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" style="font-size: 1.1rem;">Yeni Slide Ekle</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Başlık</label>
+                            <input class="form-control" @bind="newTitle" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Açıklama</label>
+                            <textarea class="form-control" @bind="newDescription" rows="2"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Resim URL</label>
+                            <input class="form-control" @bind="newImageUrl" placeholder="https://..." />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Buton Metni (opsiyonel)</label>
+                            <input class="form-control" @bind="newButtonText" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Buton Link</label>
+                            <input class="form-control" @bind="newButtonLink" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Sıra</label>
+                            <input type="number" class="form-control" @bind="newOrder" />
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="newIsActive" id="activeCheck">
+                                <label class="form-check-label" for="activeCheck">Aktif</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">İptal</button>
+                    <button class="btn btn-primary" @onclick="SaveSlider">Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Tenant> Tenants = new();
+    private List<Slider> sliders = new();
+    private Guid selectedTenantId;
+    private bool showAddModal = false;
+    private string successMessage = "";
+
+    private string newTitle = "";
+    private string newDescription = "";
+    private string newImageUrl = "";
+    private string newButtonText = "";
+    private string newButtonLink = "";
+    private int newOrder = 0;
+    private bool newIsActive = true;
+
+    private Guid SelectedTenantId
+    {
+        get => selectedTenantId;
+        set { selectedTenantId = value; LoadSliders(); }
+    }
+
+    protected override void OnInitialized() => Tenants = Context.Tenants.ToList();
+
+    private async void LoadSliders()
+    {
+        if (SelectedTenantId != Guid.Empty)
+        {
+            sliders = await ContentService.GetSlidersAsync(SelectedTenantId);
+            StateHasChanged();
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        newTitle = "";
+        newDescription = "";
+        newImageUrl = "";
+        newButtonText = "";
+        newButtonLink = "";
+        newOrder = sliders.Count;
+        newIsActive = true;
+        showAddModal = true;
+    }
+
+    private void CloseModal() => showAddModal = false;
+
+    private async Task SaveSlider()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle) || string.IsNullOrWhiteSpace(newImageUrl))
+            return;
+
+        var slider = new Slider
+        {
+            TenantId = SelectedTenantId,
+            Title = newTitle,
+            Description = newDescription,
+            ImageUrl = newImageUrl,
+            ButtonText = newButtonText,
+            ButtonLink = newButtonLink,
+            Order = newOrder,
+            IsActive = newIsActive
+        };
+
+        await ContentService.CreateSliderAsync(slider);
+        successMessage = "Slide başarıyla eklendi!";
+        showAddModal = false;
+        LoadSliders();
+    }
+
+    private async Task DeleteSlider(Guid id)
+    {
+        await ContentService.DeleteSliderAsync(id);
+        successMessage = "Slide silindi!";
+        LoadSliders();
+    }
+}
