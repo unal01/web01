@@ -26,11 +26,52 @@ namespace CoreBuilder.Services
                 .ToListAsync();
         }
 
+        public async Task<List<Slider>> GetSlidersForPageAsync(Guid tenantId, Guid pageId)
+        {
+            var all = await GetSlidersAsync(tenantId);
+            var pageIdStr = pageId.ToString();
+            return all.Where(s => s.ShowOnAllPages || 
+                (!string.IsNullOrEmpty(s.PageIds) && s.PageIds.Split(',').Contains(pageIdStr)))
+                .ToList();
+        }
+
+        public async Task<List<Slider>> GetAllSlidersAsync(Guid tenantId)
+        {
+            return await _context.Sliders
+                .Where(s => s.TenantId == tenantId)
+                .OrderBy(s => s.Order)
+                .ToListAsync();
+        }
+
+        public async Task<Slider?> GetSliderByIdAsync(Guid id)
+        {
+            return await _context.Sliders.FindAsync(id);
+        }
+
         public async Task<Slider> CreateSliderAsync(Slider slider)
         {
             _context.Sliders.Add(slider);
             await _context.SaveChangesAsync();
             return slider;
+        }
+
+        public async Task<Slider?> UpdateSliderAsync(Slider slider)
+        {
+            var existing = await _context.Sliders.FindAsync(slider.Id);
+            if (existing == null) return null;
+
+            existing.Title = slider.Title;
+            existing.Description = slider.Description;
+            existing.ImageUrl = slider.ImageUrl;
+            existing.ButtonText = slider.ButtonText;
+            existing.ButtonLink = slider.ButtonLink;
+            existing.Order = slider.Order;
+            existing.IsActive = slider.IsActive;
+            existing.ShowOnAllPages = slider.ShowOnAllPages;
+            existing.PageIds = slider.PageIds;
+
+            await _context.SaveChangesAsync();
+            return existing;
         }
 
         public async Task<bool> DeleteSliderAsync(Guid id)
@@ -51,6 +92,15 @@ namespace CoreBuilder.Services
                 .OrderByDescending(a => a.IsImportant)
                 .ThenByDescending(a => a.PublishDate)
                 .ToListAsync();
+        }
+
+        public async Task<List<Announcement>> GetAnnouncementsForPageAsync(Guid tenantId, Guid pageId)
+        {
+            var all = await GetAnnouncementsAsync(tenantId);
+            var pageIdStr = pageId.ToString();
+            return all.Where(a => a.ShowOnAllPages || 
+                (!string.IsNullOrEmpty(a.PageIds) && a.PageIds.Split(',').Contains(pageIdStr)))
+                .ToList();
         }
 
         public async Task<Announcement> CreateAnnouncementAsync(Announcement announcement)
@@ -78,6 +128,21 @@ namespace CoreBuilder.Services
                 .ThenByDescending(n => n.PublishDate)
                 .Take(take)
                 .ToListAsync();
+        }
+
+        public async Task<List<NewsArticle>> GetNewsForPageAsync(Guid tenantId, Guid pageId, int take = 10)
+        {
+            var all = await _context.NewsArticles
+                .Where(n => n.TenantId == tenantId && n.IsPublished)
+                .OrderByDescending(n => n.IsFeatured)
+                .ThenByDescending(n => n.PublishDate)
+                .ToListAsync();
+            
+            var pageIdStr = pageId.ToString();
+            return all.Where(n => n.ShowOnAllPages || 
+                (!string.IsNullOrEmpty(n.PageIds) && n.PageIds.Split(',').Contains(pageIdStr)))
+                .Take(take)
+                .ToList();
         }
 
         public async Task<NewsArticle?> GetNewsBySlugAsync(Guid tenantId, string slug)
@@ -110,7 +175,7 @@ namespace CoreBuilder.Services
             return true;
         }
 
-        // ===== GALERİ =====
+        // ===== GALERI =====
         public async Task<List<GalleryAlbum>> GetGalleryAlbumsAsync(Guid tenantId)
         {
             return await _context.GalleryAlbums

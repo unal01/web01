@@ -26,6 +26,16 @@ namespace CoreBuilder.Models
         public int Order { get; set; } = 0;
         public bool IsActive { get; set; } = true;
         
+        /// <summary>
+        /// Tum sayfalarda goster
+        /// </summary>
+        public bool ShowOnAllPages { get; set; } = true;
+        
+        /// <summary>
+        /// Belirli sayfalarda goster (virgul ile ayrilmis Page ID'leri)
+        /// </summary>
+        public string? PageIds { get; set; }
+        
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
@@ -48,6 +58,16 @@ namespace CoreBuilder.Models
         
         public bool IsImportant { get; set; } = false;
         public bool IsPublished { get; set; } = true;
+        
+        /// <summary>
+        /// Tum sayfalarda goster
+        /// </summary>
+        public bool ShowOnAllPages { get; set; } = true;
+        
+        /// <summary>
+        /// Belirli sayfalarda goster (virgul ile ayrilmis Page ID'leri)
+        /// </summary>
+        public string? PageIds { get; set; }
         
         public DateTime PublishDate { get; set; } = DateTime.UtcNow;
         public DateTime? ExpiryDate { get; set; }
@@ -85,12 +105,22 @@ namespace CoreBuilder.Models
         public bool IsPublished { get; set; } = true;
         public bool IsFeatured { get; set; } = false;
         
+        /// <summary>
+        /// Tum sayfalarda goster
+        /// </summary>
+        public bool ShowOnAllPages { get; set; } = true;
+        
+        /// <summary>
+        /// Belirli sayfalarda goster (virgul ile ayrilmis Page ID'leri)
+        /// </summary>
+        public string? PageIds { get; set; }
+        
         public DateTime PublishDate { get; set; } = DateTime.UtcNow;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
     }
 
-    // ===== GALERİ ALBÜM =====
+    // ===== GALERI ALBUM =====
     public class GalleryAlbum
     {
         [Key]
@@ -113,7 +143,7 @@ namespace CoreBuilder.Models
         public ICollection<GalleryImage> Images { get; set; } = new List<GalleryImage>();
     }
 
-    // ===== GALERİ RESİM =====
+    // ===== GALERI RESIM =====
     public class GalleryImage
     {
         [Key]

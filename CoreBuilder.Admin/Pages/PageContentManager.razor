@@ -1,0 +1,405 @@
+@page "/page/{PageId:guid}/contents"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@using CoreBuilder.Data
+@using System.IO
+@inject PageContentService ContentService
+@inject ImageService ImageService
+@inject AppDbContext Context
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <button class="btn btn-outline-secondary mb-2" @onclick="GoBack">
+                <span class="oi oi-arrow-left"></span> Geri
+            </button>
+            <h3 class="fw-bold text-dark mb-0">?çerik Yöneticisi</h3>
+            <p class="text-muted">@currentPage?.Title</p>
+        </div>
+        <button class="btn btn-primary shadow-sm" @onclick="OpenAddModal">
+            <span class="oi oi-plus me-2"></span>Yeni ?çerik Ekle
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            <strong>?</strong> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            <strong>!</strong> @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3">
+            <span class="fw-bold text-secondary">?çerikler (@contents.Count)</span>
+        </div>
+        <div class="card-body p-0">
+            @if (contents.Any())
+            {
+                <div class="row g-4 p-4">
+                    @foreach (var item in contents)
+                    {
+                        <div class="col-md-3">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="position-relative">
+                                    @if (item.ContentType == ContentType.Image)
+                                    {
+                                        <img src="@(item.ThumbnailUrl ?? item.MediaUrl)" 
+                                             class="card-img-top" 
+                                             alt="@item.Title"
+                                             style="height: 200px; object-fit: cover;" />
+                                    }
+                                    else if (item.ContentType == ContentType.Video)
+                                    {
+                                        <div style="height: 200px; background: #000; position: relative;">
+                                            <img src="@(item.ThumbnailUrl ?? "https://via.placeholder.com/300x200?text=Video")" 
+                                                 style="width: 100%; height: 100%; object-fit: cover; opacity: 0.7;" />
+                                            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                                                <span class="oi oi-play-circle" style="font-size: 3rem; color: white;"></span>
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (item.ContentType == ContentType.WidgetSlider || 
+                                             item.ContentType == ContentType.WidgetAnnouncements || 
+                                             item.ContentType == ContentType.WidgetNews)
+                                    {
+                                        <div class="d-flex align-items-center justify-content-center bg-light text-secondary" style="height: 200px;">
+                                            <div class="text-center">
+                                                <span class="oi @item.ContentType.GetIcon()" style="font-size: 3rem;"></span>
+                                                <p class="mt-2 fw-bold">@item.ContentType.GetDisplayName()</p>
+                                            </div>
+                                        </div>
+                                    }
+                                    
+                                    <div class="position-absolute top-0 end-0 m-2">
+                                        @if (item.IsActive)
+                                        {
+                                            <span class="badge bg-success">Aktif</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Pasif</span>
+                                        }
+                                    </div>
+                                </div>
+                                
+                                <div class="card-body">
+                                    <h6 class="card-title">@item.Title</h6>
+                                    @if (!string.IsNullOrEmpty(item.Description))
+                                    {
+                                        <p class="card-text small text-muted">
+                                            @item.Description.Substring(0, Math.Min(50, item.Description.Length))...
+                                        </p>
+                                    }
+                                    
+                                    <div class="d-flex gap-2 mt-3">
+                                        <button class="btn btn-sm btn-outline-primary flex-fill" @onclick="() => OpenEditModal(item)">
+                                            Düzenle
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteContent(item.Id)">
+                                            Sil
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="p-5 text-center text-muted">
+                    <span class="oi oi-image" style="font-size: 3rem;"></span>
+                    <p class="mt-3">Henüz içerik eklenmemi?.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5); z-index: 1050;">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">@(editingContentId == Guid.Empty ? "Yeni ?çerik Ekle" : "?çerik Düzenle")</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">?çerik Türü</label>
+                        <select class="form-select" @bind="newContentType">
+                            <option value="@ContentType.Image">Foto?raf</option>
+                            <option value="@ContentType.Video">Video</option>
+                            <option value="@ContentType.WidgetSlider">Slider Modülü</option>
+                            <option value="@ContentType.WidgetAnnouncements">Duyurular Modülü</option>
+                            <option value="@ContentType.WidgetNews">Haberler Modülü</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ba?l?k *</label>
+                        <input class="form-control" @bind="newTitle" placeholder="Örn: Kampüs Görünümü" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Aç?klama</label>
+                        <textarea class="form-control" @bind="newDescription" rows="2"></textarea>
+                    </div>
+                    
+                    @if (newContentType == ContentType.Image)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Foto?raf Yükle</label>
+                            <InputFile OnChange="HandleImageUpload" class="form-control" accept="image/*" />
+                            @if (isUploading)
+                            {
+                                <div class="spinner-border spinner-border-sm text-primary mt-2"></div>
+                                <span class="ms-2">Yükleniyor...</span>
+                            }
+                            @if (!string.IsNullOrEmpty(newMediaUrl))
+                            {
+                                <img src="@newMediaUrl" class="mt-2" style="max-width: 100%; max-height: 200px;" />
+                            }
+                        </div>
+                    }
+                    else if (newContentType == ContentType.Video)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">YouTube URL</label>
+                            <input class="form-control" @bind="newVideoUrl" placeholder="https://www.youtube.com/watch?v=..." />
+                            <small class="text-muted">YouTube video linki</small>
+                        </div>
+                    }
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">S?ra</label>
+                            <input type="number" class="form-control" @bind="newDisplayOrder" />
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" @bind="newIsActive" id="activeCheck">
+                                <label class="form-check-label" for="activeCheck">Aktif</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">?ptal</button>
+                    <button class="btn btn-primary" @onclick="SaveContent">Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid PageId { get; set; }
+    
+    private Page? currentPage;
+    private List<PageContent> contents = new();
+    private bool showModal = false;
+    private string successMessage = "";
+    private string errorMessage = "";
+    private Guid editingContentId = Guid.Empty;
+    private bool isUploading = false;
+
+    private ContentType newContentType = ContentType.Image;
+    private string newTitle = "";
+    private string? newDescription = "";
+    private string? newMediaUrl = "";
+    private string? newThumbnailUrl = "";
+    private string? newEmbedCode = "";
+    private string? newVideoUrl = "";
+    private int newDisplayOrder = 0;
+    private bool newIsActive = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentPage = await Context.Pages.FindAsync(PageId);
+        await LoadContents();
+    }
+
+    private async Task LoadContents()
+    {
+        contents = await ContentService.GetPageContentsAsync(PageId);
+        StateHasChanged();
+    }
+
+    private void OpenAddModal()
+    {
+        editingContentId = Guid.Empty;
+        newContentType = ContentType.Image;
+        newTitle = "";
+        newDescription = "";
+        newMediaUrl = "";
+        newDisplayOrder = contents.Count;
+        newIsActive = true;
+        showModal = true;
+    }
+
+    private void OpenEditModal(PageContent content)
+    {
+        editingContentId = content.Id;
+        newContentType = content.ContentType;
+        newTitle = content.Title;
+        newDescription = content.Description;
+        newMediaUrl = content.MediaUrl;
+        newDisplayOrder = content.DisplayOrder;
+        newIsActive = content.IsActive;
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+    }
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        errorMessage = "";
+        isUploading = true;
+
+        try
+        {
+            var file = e.File;
+            var extension = System.IO.Path.GetExtension(file.Name).ToLowerInvariant();
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            
+            if (!allowedExtensions.Contains(extension))
+            {
+                errorMessage = "Sadece resim dosyalar? (JPG, PNG, GIF, WebP)";
+                return;
+            }
+
+            if (file.Size > 5 * 1024 * 1024)
+            {
+                errorMessage = "Dosya 5MB'dan büyük olamaz";
+                return;
+            }
+
+            var filePath = await ImageService.UploadImageAsync(file, currentPage!.TenantId);
+            newMediaUrl = filePath;
+            newThumbnailUrl = filePath;
+            
+            successMessage = "Foto?raf yüklendi!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Hata: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveContent()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle))
+        {
+            errorMessage = "Ba?l?k zorunlu!";
+            return;
+        }
+
+        if (newContentType == ContentType.Video && !string.IsNullOrEmpty(newVideoUrl))
+        {
+            newEmbedCode = GenerateVideoEmbed(newVideoUrl);
+            newThumbnailUrl = GenerateVideoThumbnail(newVideoUrl);
+        }
+
+        if (editingContentId == Guid.Empty)
+        {
+            var content = new PageContent
+            {
+                PageId = PageId,
+                ContentType = newContentType,
+                Title = newTitle,
+                Description = newDescription,
+                MediaUrl = newMediaUrl,
+                ThumbnailUrl = newThumbnailUrl,
+                EmbedCode = newEmbedCode,
+                DisplayOrder = newDisplayOrder,
+                IsActive = newIsActive
+            };
+
+            await ContentService.CreateContentAsync(content);
+            successMessage = "?çerik eklendi!";
+        }
+        else
+        {
+            var content = await ContentService.GetContentByIdAsync(editingContentId);
+            if (content != null)
+            {
+                content.ContentType = newContentType;
+                content.Title = newTitle;
+                content.Description = newDescription;
+                content.MediaUrl = newMediaUrl;
+                content.ThumbnailUrl = newThumbnailUrl;
+                content.DisplayOrder = newDisplayOrder;
+                content.IsActive = newIsActive;
+
+                await ContentService.UpdateContentAsync(content);
+                successMessage = "?çerik güncellendi!";
+            }
+        }
+
+        showModal = false;
+        await LoadContents();
+    }
+
+    private async Task DeleteContent(Guid id)
+    {
+        await ContentService.DeleteContentAsync(id);
+        successMessage = "?çerik silindi!";
+        await LoadContents();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo($"/page/{PageId}");
+    }
+
+    private string GenerateVideoEmbed(string url)
+    {
+        if (url.Contains("youtube.com") || url.Contains("youtu.be"))
+        {
+            var videoId = ExtractYouTubeId(url);
+            return $"<iframe width='100%' height='400' src='https://www.youtube.com/embed/{videoId}' frameborder='0' allowfullscreen></iframe>";
+        }
+        return "";
+    }
+
+    private string? GenerateVideoThumbnail(string url)
+    {
+        if (url.Contains("youtube.com") || url.Contains("youtu.be"))
+        {
+            var videoId = ExtractYouTubeId(url);
+            return $"https://img.youtube.com/vi/{videoId}/hqdefault.jpg";
+        }
+        return null;
+    }
+
+    private string ExtractYouTubeId(string url)
+    {
+        var uri = new Uri(url);
+        if (url.Contains("youtu.be"))
+        {
+            return uri.Segments.Last();
+        }
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        return query["v"] ?? "";
+    }
+}

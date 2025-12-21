@@ -1,0 +1,258 @@
+@page "/teachers"
+@page "/teachers/{TenantIdParam:guid?}"
+@using CoreBuilder.Models
+@using CoreBuilder.Data
+@inject AppDbContext Context
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold text-dark mb-0" style="font-size: 1.75rem;">????? Ö?retmen Kadrosu</h3>
+        @if (SelectedTenantId != Guid.Empty)
+        {
+            <button class="btn btn-primary shadow-sm" @onclick="OpenAddModal">
+                <span class="oi oi-plus me-2"></span>Yeni Ö?retmen Ekle
+            </button>
+        }
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <label class="form-label fw-bold mb-2">Site Seçin:</label>
+            <select class="form-select" @bind="SelectedTenantId" @bind:event="onchange">
+                <option value="@Guid.Empty">-- Seçiniz --</option>
+                @foreach (var t in Tenants)
+                {
+                    <option value="@t.Id">@t.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (SelectedTenantId != Guid.Empty)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <span class="fw-bold text-secondary">Ö?retmen Listesi (@teachers.Count)</span>
+                <small class="text-muted">Toplam Ö?retmen</small>
+            </div>
+            <div class="card-body p-0">
+                @if (teachers.Any())
+                {
+                    <div class="row g-4 p-4">
+                        @foreach (var teacher in teachers)
+                        {
+                            <div class="col-md-4">
+                                <div class="card h-100 border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="fw-bold mb-2">@teacher.FullName</h5>
+                                        @if (!string.IsNullOrWhiteSpace(teacher.Title))
+                                        {
+                                            <div class="text-muted mb-2">@teacher.Title</div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(teacher.Department))
+                                        {
+                                            <p class="mb-1"><strong>Bölüm:</strong> @teacher.Department</p>
+                                        }
+                                        <div class="d-flex gap-2 mt-3">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEditModal(teacher)">
+                                                <span class="oi oi-pencil"></span> Düzenle
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteTeacher(teacher.Id)">
+                                                <span class="oi oi-trash"></span> Sil
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="p-5 text-center text-muted">
+                        <span class="oi oi-info" style="font-size: 2rem;"></span>
+                        <p class="mt-2">Henüz ö?retmen eklenmemi?.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (showModal)
+{
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5); z-index: 1050;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">@(editingTeacherId == Guid.Empty ? "Yeni Ö?retmen Ekle" : "Ö?retmen Düzenle")</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ad Soyad</label>
+                        <input class="form-control" @bind="newFullName" placeholder="Örn: Mustafa Turan KAR" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ünvan</label>
+                        <input class="form-control" @bind="newTitle" placeholder="Örn: Dr. Ö?r. Üyesi" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Bölüm</label>
+                        <input class="form-control" @bind="newDepartment" placeholder="Örn: Matematik" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Görüntüleme S?ras?</label>
+                        <input type="number" class="form-control" @bind="newDisplayOrder" />
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" @bind="newIsActive" id="activeTeacher">
+                        <label class="form-check-label" for="activeTeacher">Aktif</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">?ptal</button>
+                    <button class="btn btn-primary" @onclick="SaveTeacher">@(editingTeacherId == Guid.Empty ? "Kaydet" : "Güncelle")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid? TenantIdParam { get; set; }
+
+    private List<Tenant> Tenants = new();
+    private List<Teacher> teachers = new();
+
+    private Guid selectedTenantId;
+    private bool showModal;
+
+    private Guid editingTeacherId = Guid.Empty;
+
+    private string newFullName = "";
+    private string newTitle = "";
+    private string newDepartment = "";
+    private int newDisplayOrder;
+    private bool newIsActive = true;
+
+    private Guid SelectedTenantId
+    {
+        get => selectedTenantId;
+        set
+        {
+            selectedTenantId = value;
+            LoadTeachers();
+            if (value != Guid.Empty)
+            {
+                Navigation.NavigateTo($"/teachers/{value}", false);
+            }
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Tenants = Context.Tenants.ToList();
+        if (TenantIdParam.HasValue && TenantIdParam.Value != Guid.Empty)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadTeachers();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (TenantIdParam.HasValue && TenantIdParam.Value != selectedTenantId)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadTeachers();
+        }
+    }
+
+    private void LoadTeachers()
+    {
+        if (SelectedTenantId == Guid.Empty)
+        {
+            teachers = new();
+            return;
+        }
+
+        teachers = Context.Teachers
+            .Where(t => t.TenantId == SelectedTenantId)
+            .OrderBy(t => t.DisplayOrder)
+            .ThenBy(t => t.FullName)
+            .ToList();
+    }
+
+    private void OpenAddModal()
+    {
+        editingTeacherId = Guid.Empty;
+        newFullName = "";
+        newTitle = "";
+        newDepartment = "";
+        newDisplayOrder = teachers.Count;
+        newIsActive = true;
+        showModal = true;
+    }
+
+    private void OpenEditModal(Teacher teacher)
+    {
+        editingTeacherId = teacher.Id;
+        newFullName = teacher.FullName;
+        newTitle = teacher.Title ?? "";
+        newDepartment = teacher.Department ?? "";
+        newDisplayOrder = teacher.DisplayOrder;
+        newIsActive = teacher.IsActive;
+        showModal = true;
+    }
+
+    private void CloseModal() => showModal = false;
+
+    private async Task SaveTeacher()
+    {
+        if (string.IsNullOrWhiteSpace(newFullName)) return;
+
+        if (editingTeacherId == Guid.Empty)
+        {
+            var t = new Teacher
+            {
+                TenantId = SelectedTenantId,
+                FullName = newFullName,
+                Title = newTitle,
+                Department = newDepartment,
+                DisplayOrder = newDisplayOrder,
+                IsActive = newIsActive
+            };
+
+            Context.Teachers.Add(t);
+        }
+        else
+        {
+            var existing = await Context.Teachers.FindAsync(editingTeacherId);
+            if (existing == null) return;
+
+            existing.FullName = newFullName;
+            existing.Title = newTitle;
+            existing.Department = newDepartment;
+            existing.DisplayOrder = newDisplayOrder;
+            existing.IsActive = newIsActive;
+
+            Context.Teachers.Update(existing);
+        }
+
+        await Context.SaveChangesAsync();
+        showModal = false;
+        LoadTeachers();
+    }
+
+    private async Task DeleteTeacher(Guid id)
+    {
+        var t = await Context.Teachers.FindAsync(id);
+        if (t == null) return;
+
+        Context.Teachers.Remove(t);
+        await Context.SaveChangesAsync();
+        LoadTeachers();
+    }
+}

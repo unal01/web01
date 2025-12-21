@@ -1,0 +1,453 @@
+@page "/contact-settings"
+@page "/contact-settings/{TenantIdParam:guid}"
+@using CoreBuilder.Models
+@using CoreBuilder.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Text.RegularExpressions
+@inject AppDbContext Context
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold text-dark mb-0"><i class="bi bi-telephone me-2"></i>Iletisim Bilgileri</h3>
+            <p class="text-muted mb-0">Site iletisim bilgilerini ve sayfa duzenini yonetin</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            <i class="bi bi-check-circle me-2"></i>@successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="bi bi-exclamation-triangle me-2"></i>@errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (warnings.Any())
+    {
+        <div class="alert alert-warning alert-dismissible fade show">
+            <i class="bi bi-info-circle me-2"></i><strong>Uyarilar:</strong>
+            <ul class="mb-0 mt-2">
+                @foreach (var w in warnings)
+                {
+                    <li>@w</li>
+                }
+            </ul>
+            <button type="button" class="btn-close" @onclick="ClearWarnings"></button>
+        </div>
+    }
+
+    <!-- Site Secimi -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <label class="form-label fw-bold">Site Secin:</label>
+            <select class="form-select" value="@selectedTenantId" @onchange="OnTenantChanged">
+                <option value="@Guid.Empty">-- Site Secin --</option>
+                @foreach (var tenant in tenants)
+                {
+                    <option value="@tenant.Id">@tenant.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (selectedTenantId != Guid.Empty && contactInfo != null)
+    {
+        <div class="row">
+            <!-- Sol Panel -->
+            <div class="col-lg-6">
+                <!-- Telefon Bilgileri -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-primary text-white py-3">
+                        <h5 class="mb-0"><i class="bi bi-telephone me-2"></i>Telefon Numaralari</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label small">Etiket 1</label>
+                                <input class="form-control form-control-sm" @bind="contactInfo.Phone1Label" />
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label small">Numara 1</label>
+                                <input class="form-control" value="@phone1Input" @onchange="OnPhone1Change" placeholder="5051234567" />
+                                @if (!string.IsNullOrEmpty(contactInfo.Phone1))
+                                {
+                                    <small class="text-success"><i class="bi bi-check"></i> @contactInfo.Phone1</small>
+                                }
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <label class="form-label small">Etiket 2</label>
+                                <input class="form-control form-control-sm" @bind="contactInfo.Phone2Label" />
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label small">Numara 2</label>
+                                <input class="form-control" value="@phone2Input" @onchange="OnPhone2Change" placeholder="5301234567" />
+                                @if (!string.IsNullOrEmpty(contactInfo.Phone2))
+                                {
+                                    <small class="text-success"><i class="bi bi-check"></i> @contactInfo.Phone2</small>
+                                }
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <label class="form-label small">Etiket 3</label>
+                                <input class="form-control form-control-sm" @bind="contactInfo.Phone3Label" />
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label small">Numara 3</label>
+                                <input class="form-control" value="@phone3Input" @onchange="OnPhone3Change" placeholder="3781234567" />
+                                @if (!string.IsNullOrEmpty(contactInfo.Phone3))
+                                {
+                                    <small class="text-success"><i class="bi bi-check"></i> @contactInfo.Phone3</small>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- E-posta -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-success text-white py-3">
+                        <h5 class="mb-0"><i class="bi bi-envelope me-2"></i>E-posta Adresleri</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">E-posta 1</label>
+                                <input type="email" class="form-control" @bind="contactInfo.Email" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">E-posta 2</label>
+                                <input type="email" class="form-control" @bind="contactInfo.Email2" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Adres -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-info text-white py-3">
+                        <h5 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Adres Bilgileri</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Adres</label>
+                                <textarea class="form-control" @bind="contactInfo.Address" rows="2"></textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Ilce</label>
+                                <input class="form-control" @bind="contactInfo.District" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Il</label>
+                                <input class="form-control" @bind="contactInfo.City" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Posta Kodu</label>
+                                <input class="form-control" @bind="contactInfo.PostalCode" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calisma Saatleri -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-warning py-3">
+                        <h5 class="mb-0"><i class="bi bi-clock me-2"></i>Calisma Saatleri</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Calisma Gunleri</label>
+                                <input class="form-control" @bind="contactInfo.WorkingDays" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Calisma Saatleri</label>
+                                <input class="form-control" @bind="contactInfo.WorkingHours" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sag Panel -->
+            <div class="col-lg-6">
+                <!-- Google Maps -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-danger text-white py-3">
+                        <h5 class="mb-0"><i class="bi bi-map me-2"></i>Google Harita</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Google Maps Embed URL</label>
+                            <textarea class="form-control font-monospace" style="font-size: 11px;" @bind="contactInfo.GoogleMapsEmbedUrl" rows="3"></textarea>
+                            <small class="text-muted">Google Maps - Paylas - Haritayi yerlestir - iframe src URL</small>
+                        </div>
+                        
+                        @if (!string.IsNullOrEmpty(contactInfo.GoogleMapsEmbedUrl))
+                        {
+                            <div class="border rounded overflow-hidden" style="height: 200px;">
+                                <iframe src="@contactInfo.GoogleMapsEmbedUrl" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy"></iframe>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Sosyal Medya -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-dark text-white py-3">
+                        <h5 class="mb-0"><i class="bi bi-share me-2"></i>Sosyal Medya</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label"><i class="bi bi-whatsapp text-success me-1"></i>WhatsApp</label>
+                                <input class="form-control" @bind="contactInfo.WhatsApp" placeholder="905001234567" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label"><i class="bi bi-instagram text-danger me-1"></i>Instagram</label>
+                                <input class="form-control" @bind="contactInfo.Instagram" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label"><i class="bi bi-facebook text-primary me-1"></i>Facebook</label>
+                                <input class="form-control" @bind="contactInfo.Facebook" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label"><i class="bi bi-twitter text-info me-1"></i>Twitter / X</label>
+                                <input class="form-control" @bind="contactInfo.Twitter" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label"><i class="bi bi-youtube text-danger me-1"></i>YouTube</label>
+                                <input class="form-control" @bind="contactInfo.YouTube" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label"><i class="bi bi-tiktok me-1"></i>TikTok</label>
+                                <input class="form-control" @bind="contactInfo.TikTok" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sayfa Duzeni -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-secondary text-white py-3">
+                        <h5 class="mb-0"><i class="bi bi-layout-text-window me-2"></i>Sayfa Duzeni</h5>
+                    </div>
+                    <div class="card-body">
+                        <select class="form-select" @bind="selectedLayout">
+                            <option value="layout1">Sol: Bilgiler | Sag: Harita</option>
+                            <option value="layout2">Sol: Harita | Sag: Bilgiler</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kaydet Butonu -->
+        <div class="d-flex gap-2 mb-4">
+            <button class="btn btn-primary btn-lg px-5" @onclick="SaveContactInfo" disabled="@isSaving">
+                @if (isSaving)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                }
+                <i class="bi bi-check-lg me-2"></i>Kaydet
+            </button>
+            <a href="/demo/@selectedTenantId/iletisim" target="_blank" class="btn btn-outline-success btn-lg">
+                <i class="bi bi-eye me-2"></i>Onizle
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? TenantIdParam { get; set; }
+    
+    private List<Tenant> tenants = new();
+    private Guid selectedTenantId = Guid.Empty;
+    private ContactInfo? contactInfo;
+    private string successMessage = "";
+    private string errorMessage = "";
+    private List<string> warnings = new();
+    private string selectedLayout = "layout1";
+    private bool isSaving = false;
+    private bool isNewRecord = false;
+    
+    private string phone1Input = "";
+    private string phone2Input = "";
+    private string phone3Input = "";
+
+    protected override void OnInitialized()
+    {
+        tenants = Context.Tenants.ToList();
+        
+        if (TenantIdParam.HasValue && TenantIdParam.Value != Guid.Empty)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadContactInfo();
+        }
+    }
+
+    private void OnTenantChanged(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var id))
+        {
+            selectedTenantId = id;
+            LoadContactInfo();
+        }
+    }
+
+    private void LoadContactInfo()
+    {
+        if (selectedTenantId == Guid.Empty)
+        {
+            contactInfo = null;
+            return;
+        }
+
+        Context.ChangeTracker.Clear();
+
+        var existing = Context.ContactInfos.AsNoTracking().FirstOrDefault(c => c.TenantId == selectedTenantId);
+        
+        if (existing == null)
+        {
+            isNewRecord = true;
+            contactInfo = new ContactInfo
+            {
+                Id = Guid.NewGuid(),
+                TenantId = selectedTenantId,
+                Phone1Label = "Telefon",
+                Phone2Label = "Telefon 2",
+                Phone3Label = "Sabit Hat"
+            };
+        }
+        else
+        {
+            isNewRecord = false;
+            contactInfo = existing;
+        }
+        
+        phone1Input = contactInfo.Phone1 ?? "";
+        phone2Input = contactInfo.Phone2 ?? "";
+        phone3Input = contactInfo.Phone3 ?? "";
+        selectedLayout = contactInfo.PageLayout ?? "layout1";
+        
+        ClearMessages();
+    }
+
+    private void OnPhone1Change(ChangeEventArgs e)
+    {
+        phone1Input = e.Value?.ToString() ?? "";
+        contactInfo!.Phone1 = FormatPhoneNumber(phone1Input);
+    }
+
+    private void OnPhone2Change(ChangeEventArgs e)
+    {
+        phone2Input = e.Value?.ToString() ?? "";
+        contactInfo!.Phone2 = FormatPhoneNumber(phone2Input);
+    }
+
+    private void OnPhone3Change(ChangeEventArgs e)
+    {
+        phone3Input = e.Value?.ToString() ?? "";
+        contactInfo!.Phone3 = FormatPhoneNumber(phone3Input);
+    }
+
+    private string FormatPhoneNumber(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return "";
+        
+        var digits = Regex.Replace(input, @"[^\d]", "");
+        if (string.IsNullOrEmpty(digits)) return "";
+        
+        if (digits.Length == 10 && digits.StartsWith("5"))
+        {
+            return $"+90 ({digits.Substring(0, 3)}) {digits.Substring(3, 3)} {digits.Substring(6, 2)} {digits.Substring(8, 2)}";
+        }
+        else if (digits.Length == 11 && digits.StartsWith("0"))
+        {
+            digits = digits.Substring(1);
+            return $"+90 ({digits.Substring(0, 3)}) {digits.Substring(3, 3)} {digits.Substring(6, 2)} {digits.Substring(8, 2)}";
+        }
+        else if (digits.Length == 12 && digits.StartsWith("90"))
+        {
+            digits = digits.Substring(2);
+            return $"+90 ({digits.Substring(0, 3)}) {digits.Substring(3, 3)} {digits.Substring(6, 2)} {digits.Substring(8, 2)}";
+        }
+        else if (digits.Length == 10)
+        {
+            return $"+90 ({digits.Substring(0, 3)}) {digits.Substring(3, 3)} {digits.Substring(6, 2)} {digits.Substring(8, 2)}";
+        }
+        
+        return input;
+    }
+
+    private void ValidateAndWarn()
+    {
+        warnings.Clear();
+        
+        if (string.IsNullOrEmpty(contactInfo!.Phone1) && string.IsNullOrEmpty(contactInfo.Phone2))
+            warnings.Add("En az bir telefon numarasi girmeniz onerilir.");
+        
+        if (string.IsNullOrEmpty(contactInfo.Email))
+            warnings.Add("E-posta adresi girilmedi.");
+        
+        if (string.IsNullOrEmpty(contactInfo.Address))
+            warnings.Add("Adres bilgisi girilmedi.");
+    }
+
+    private void ClearWarnings() => warnings.Clear();
+    private void ClearMessages() { successMessage = ""; errorMessage = ""; warnings.Clear(); }
+
+    private async Task SaveContactInfo()
+    {
+        if (contactInfo == null) return;
+        
+        isSaving = true;
+        ClearMessages();
+        
+        try
+        {
+            ValidateAndWarn();
+            
+            contactInfo.PageLayout = selectedLayout;
+            contactInfo.UpdatedAt = DateTime.UtcNow;
+
+            Context.ChangeTracker.Clear();
+
+            if (isNewRecord)
+            {
+                Context.ContactInfos.Add(contactInfo);
+            }
+            else
+            {
+                Context.ContactInfos.Update(contactInfo);
+            }
+
+            var saved = await Context.SaveChangesAsync();
+            
+            isNewRecord = false;
+            successMessage = $"Iletisim bilgileri kaydedildi! ({saved} kayit)";
+        }
+        catch (DbUpdateException ex)
+        {
+            errorMessage = $"Veritabani hatasi: {ex.InnerException?.Message ?? ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Hata: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

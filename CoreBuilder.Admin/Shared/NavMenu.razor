@@ -1,69 +1,102 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">CoreBuilder Admin</a>
+@using CoreBuilder.Data
+@inject AppDbContext Context
+
+<div class="sidebar-brand">
+    <div class="brand-logo">
+        <i class="bi bi-layers-fill"></i>
+    </div>
+    <div class="brand-text">
+        <h2>CoreBuilder</h2>
+        <p>Admin Panel</p>
     </div>
 </div>
 
-<nav class="flex-column">
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-            <span class="oi oi-home" aria-hidden="true"></span> Ana Sayfa
-        </NavLink>
+<div class="sidebar-scroll">
+    <nav class="sidebar-nav">
+        <div class="nav-section">
+            <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
+                <i class="bi bi-speedometer2"></i>
+                <span>Dashboard</span>
+            </NavLink>
+        </div>
+
+        <div class="nav-section-title">
+            <span>Icerik Yonetimi</span>
+        </div>
+
+        <div class="nav-section">
+            <NavLink class="nav-item" href="sites">
+                <i class="bi bi-globe"></i>
+                <span>Siteler</span>
+                <span class="nav-badge">@siteCount</span>
+            </NavLink>
+
+            <NavLink class="nav-item" href="pages">
+                <i class="bi bi-file-earmark-text"></i>
+                <span>Sayfalar</span>
+            </NavLink>
+
+            <NavLink class="nav-item" href="contact-settings">
+                <i class="bi bi-telephone"></i>
+                <span>Iletisim Bilgileri</span>
+            </NavLink>
+
+            <NavLink class="nav-item" href="themes">
+                <i class="bi bi-palette"></i>
+                <span>Temalar</span>
+            </NavLink>
+        </div>
+
+        <div class="nav-section-title">
+            <span>Sistem</span>
+        </div>
+
+        <div class="nav-section">
+            <NavLink class="nav-item" href="users">
+                <i class="bi bi-people"></i>
+                <span>Kullanicilar</span>
+            </NavLink>
+
+            <NavLink class="nav-item" href="settings">
+                <i class="bi bi-gear"></i>
+                <span>Ayarlar</span>
+            </NavLink>
+
+            <NavLink class="nav-item" href="settings/fonts">
+                <i class="bi bi-fonts"></i>
+                <span>Font Ayarlari</span>
+            </NavLink>
+        </div>
+
+        <div class="nav-section-title">
+            <span>Ozel</span>
+        </div>
+
+        <div class="nav-section">
+            <NavLink class="nav-item featured" href="demo">
+                <i class="bi bi-star-fill"></i>
+                <span>Demo Sitesi</span>
+                <span class="nav-badge badge-success">YENI</span>
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+<div class="sidebar-footer">
+    <div class="sidebar-user">
+        <img src="https://ui-avatars.com/api/?name=Admin&amp;background=667eea&amp;color=fff" alt="Admin" />
+        <div class="user-info">
+            <p class="user-name">Admin</p>
+            <p class="user-role">Yonetici</p>
+        </div>
     </div>
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="demo" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 5px;">
-            <span class="oi oi-globe" aria-hidden="true"></span> 🌟 Demo Web Sitesi
-        </NavLink>
-    </div>
-    
-    <hr style="border-color: rgba(255,255,255,0.2); margin: 10px 20px;" />
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="users">
-            <span class="oi oi-people" aria-hidden="true"></span> Kullanıcılar
-        </NavLink>
-    </div>
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="sites">
-            <span class="oi oi-globe" aria-hidden="true"></span> Siteler
-        </NavLink>
-    </div>
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="pages">
-            <span class="oi oi-document" aria-hidden="true"></span> Sayfalar
-        </NavLink>
-    </div>
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="sliders">
-            <span class="oi oi-media-play" aria-hidden="true"></span> Slider
-        </NavLink>
-    </div>
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="announcements">
-            <span class="oi oi-megaphone" aria-hidden="true"></span> Duyurular
-        </NavLink>
-    </div>
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="gallery">
-            <span class="oi oi-image" aria-hidden="true"></span> Medya
-        </NavLink>
-    </div>
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="themes">
-            <span class="oi oi-brush" aria-hidden="true"></span> Temalar
-        </NavLink>
-    </div>
-    
-    <div class="nav-item px-3">
-        <NavLink class="nav-link" href="settings">
-            <span class="oi oi-cog" aria-hidden="true"></span> Ayarlar
-        </NavLink>
-    </div>
-</nav>
+</div>
+
+@code {
+    private int siteCount = 0;
+
+    protected override void OnInitialized()
+    {
+        siteCount = Context.Tenants.Count();
+    }
+}

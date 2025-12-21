@@ -8,7 +8,6 @@ using CoreBuilder.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -21,7 +20,7 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    Log.Information("🚀 CoreBuilder başlatılıyor...");
+    Log.Information("CoreBuilder baslatiliyor...");
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
 
@@ -50,17 +49,22 @@ try
         });
     builder.Services.AddAuthorization();
 
-    // SERVICES
     builder.Services.AddScoped<IFileStorageService, InMemoryFileStorageService>();
     builder.Services.AddScoped<SiteGenerationService>();
+    builder.Services.AddScoped<SiteTemplateService>();
     builder.Services.AddScoped<ThemeService>();
     builder.Services.AddScoped<SiteService>();
     builder.Services.AddScoped<EducationSiteFactory>();
     builder.Services.AddScoped<MarketingSiteFactory>();
+    builder.Services.AddScoped<GovernmentSiteFactory>();
+    builder.Services.AddScoped<ExamPrepSiteFactory>();
     builder.Services.AddScoped<ImageService>();
     builder.Services.AddScoped<UserService>();
     builder.Services.AddScoped<SettingsService>();
     builder.Services.AddScoped<ContentService>();
+    builder.Services.AddScoped<TeacherService>();
+    builder.Services.AddScoped<PageContentService>();
+    builder.Services.AddScoped<FontSettingsService>();
 
     builder.Services.AddSignalR();
     builder.Services.AddGraphQLServer()
@@ -112,154 +116,181 @@ try
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Database.EnsureCreated();
 
-        // 1. THEMES
+        // THEMES
         if (!db.Themes.Any())
         {
             db.Themes.AddRange(
                 new Theme { Name = "Okyanus Mavisi", PrimaryColor = "#007bff", SecondaryColor = "#6c757d", FontFamily = "Arial", IsDefault = true },
-                new Theme { Name = "Orman Yeşili", PrimaryColor = "#28a745", SecondaryColor = "#155724", FontFamily = "Verdana" },
-                new Theme { Name = "Gece Modu", PrimaryColor = "#343a40", SecondaryColor = "#6c757d", FontFamily = "Segoe UI" }
+                new Theme { Name = "Orman Yesili", PrimaryColor = "#28a745", SecondaryColor = "#155724", FontFamily = "Verdana" },
+                new Theme { Name = "Turuncu Egitim", PrimaryColor = "#ff6600", SecondaryColor = "#cc5200", FontFamily = "Poppins" }
             );
             await db.SaveChangesAsync();
-            Log.Information("✅ 3 tema eklendi");
         }
 
-        // 2. ADMIN USER
+        // ADMIN USER
         var userService = scope.ServiceProvider.GetRequiredService<UserService>();
         if (!db.Users.Any())
         {
             await userService.CreateUserAsync("admin", "admin@corebuilder.com", "Admin123!", "Admin", true);
-            Log.Information("✅ Admin: admin / Admin123!");
         }
 
-        // 3. DEMO TENANT
-        Guid demoTenantId = Guid.Empty;
         var defaultTheme = await db.Themes.FirstOrDefaultAsync(t => t.IsDefault);
-        
-        if (defaultTheme == null)
-        {
-            Log.Error("❌ Varsayılan tema bulunamadı!");
-        }
-        else if (!db.Tenants.Any())
+        var orangeTheme = await db.Themes.FirstOrDefaultAsync(t => t.Name == "Turuncu Egitim");
+
+        // BARTIN SINAV ILERI KURS
+        if (defaultTheme != null && !db.Tenants.Any(t => t.Name == "Bartin Sinav Ileri Kurs"))
         {
             var tenant = new Tenant
             {
-                Name = "Demo Okul",
-                Domain = "demo.localhost",
+                Name = "Bartin Sinav Ileri Kurs",
+                Domain = "sinav.localhost",
                 Category = "Education",
-                ThemeId = defaultTheme.Id
+                ThemeId = orangeTheme?.Id ?? defaultTheme.Id
             };
             db.Tenants.Add(tenant);
             await db.SaveChangesAsync();
-            demoTenantId = tenant.Id;
-            Log.Information("✅ Demo Okul tenant (demo.localhost)");
-        }
-        else
-        {
-            demoTenantId = db.Tenants.First().Id;
-            Log.Information("ℹ️ Mevcut tenant kullanılıyor");
-        }
 
-        // 4. DEMO SLIDERS
-        if (demoTenantId != Guid.Empty && !db.Sliders.Any())
-        {
+            // SAYFALAR
+            var anasayfa = new Page { TenantId = tenant.Id, Title = "Ana Sayfa", Slug = "anasayfa", Content = "", IsPublished = true, MenuOrder = 0 };
+            var hakkimizda = new Page { TenantId = tenant.Id, Title = "Hakkimizda", Slug = "hakkimizda", Content = "<h2>Bartin Sinav Ileri Kurs</h2><p>2010 yilindan bu yana Bartin'da egitim veren kurumumuz, binlerce ogrenciyi hayallerindeki universite ve liseye yerlestirmistir.</p>", IsPublished = true, MenuOrder = 1 };
+            var kurslar = new Page { TenantId = tenant.Id, Title = "Kurslarimiz", Slug = "kurslarimiz", Content = "<h2>Egitim Programlarimiz</h2><ul><li>YKS Hazirlik</li><li>LGS Hazirlik</li><li>KPSS Hazirlik</li><li>DGS Hazirlik</li></ul>", IsPublished = true, MenuOrder = 2 };
+            var iletisim = new Page { TenantId = tenant.Id, Title = "Iletisim", Slug = "iletisim", Content = "", IsPublished = true, MenuOrder = 3 };
+            var duyurular = new Page { TenantId = tenant.Id, Title = "Duyurular", Slug = "duyurular", Content = "", IsPublished = true, MenuOrder = 4 };
+
+            db.Pages.AddRange(anasayfa, hakkimizda, kurslar, iletisim, duyurular);
+            await db.SaveChangesAsync();
+
+            // PAGE CONTENTS
+            db.PageContents.AddRange(
+                new PageContent { PageId = anasayfa.Id, ContentType = ContentType.WidgetSlider, Title = "Slider", DisplayOrder = 0, IsActive = true },
+                new PageContent { PageId = anasayfa.Id, ContentType = ContentType.WidgetAnnouncements, Title = "Duyurular", DisplayOrder = 1, IsActive = true },
+                new PageContent { PageId = anasayfa.Id, ContentType = ContentType.WidgetNews, Title = "Haberler", DisplayOrder = 2, IsActive = true },
+                new PageContent { PageId = duyurular.Id, ContentType = ContentType.WidgetAnnouncements, Title = "Duyurular", DisplayOrder = 0, IsActive = true }
+            );
+            await db.SaveChangesAsync();
+
+            // SLIDERLAR
             db.Sliders.AddRange(
                 new Slider
                 {
-                    TenantId = demoTenantId,
-                    Title = "Modern Eğitim Platformu",
-                    Description = "Öğrencileriniz için en iyi dijital öğrenme deneyimi",
+                    TenantId = tenant.Id,
+                    Title = "2024 YKS Hazirlik Kayitlari Basladi",
+                    Description = "Turkiye'nin en basarili egitim kadrosuyla YKS'ye hazirlanin! Erken kayit indirimi icin acele edin.",
                     ImageUrl = "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&h=400&fit=crop",
-                    ButtonText = "Hemen Başla",
+                    ButtonText = "Hemen Kayit Ol",
                     ButtonLink = "/kayit",
                     Order = 1,
                     IsActive = true
                 },
                 new Slider
                 {
-                    TenantId = demoTenantId,
-                    Title = "Online Kurslar",
-                    Description = "100+ uzman eğitmen ile 500+ çevrimiçi kurs",
-                    ImageUrl = "https://images.unsplash.com/photo-1501504905252-473c47e087f8?w=1200&h=400&fit=crop",
-                    ButtonText = "Kursları İncele",
-                    ButtonLink = "/kurslar",
+                    TenantId = tenant.Id,
+                    Title = "LGS'de Yuzde 100 Basari",
+                    Description = "Gecen yil ogrencilerimizin yuzde 85'i ilk 10.000'e girdi!",
+                    ImageUrl = "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=1200&h=400&fit=crop",
+                    ButtonText = "Basari Hikayelerini Gor",
+                    ButtonLink = "/basarilar",
                     Order = 2,
                     IsActive = true
                 },
                 new Slider
                 {
-                    TenantId = demoTenantId,
-                    Title = "Sertifika Programları",
-                    Description = "Uluslararası geçerliliğe sahip sertifikalar kazanın",
+                    TenantId = tenant.Id,
+                    Title = "Ucretsiz Deneme Sinavi",
+                    Description = "Her hafta sonu ucretsiz deneme sinavlari ile seviyenizi olcun!",
                     ImageUrl = "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=1200&h=400&fit=crop",
-                    ButtonText = "Detaylı Bilgi",
-                    ButtonLink = "/sertifika",
+                    ButtonText = "Sinav Takvimi",
+                    ButtonLink = "/sinav-takvimi",
                     Order = 3,
                     IsActive = true
                 }
             );
             await db.SaveChangesAsync();
-            Log.Information("✅ 3 slider eklendi");
-        }
 
-        // 5. DEMO ANNOUNCEMENTS
-        if (demoTenantId != Guid.Empty && !db.Announcements.Any())
-        {
+            // DUYURULAR
             db.Announcements.AddRange(
                 new Announcement
                 {
-                    TenantId = demoTenantId,
-                    Title = "Yeni Dönem Kayıtları Başladı!",
-                    Content = "2024 Bahar dönemi kayıtlarımız 15 Ocak'ta başlıyor. Erken kayıt fırsatlarından yararlanmak için hemen başvurun. İlk 100 öğrenciye %20 indirim!",
-                    ImageUrl = "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=600&h=300&fit=crop",
-                    IsImportant = true
+                    TenantId = tenant.Id,
+                    Title = "2024-2025 Egitim Donemi Kayitlari Basladi!",
+                    Content = "Yeni egitim donemi kayitlarimiz baslamistir. Erken kayit yaptiran ogrencilerimize yuzde 20 indirim firsati! Son basvuru: 15 Eylul 2024",
+                    ImageUrl = "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=600&h=300&fit=crop",
+                    IsImportant = true,
+                    PublishDate = DateTime.UtcNow
                 },
                 new Announcement
                 {
-                    TenantId = demoTenantId,
-                    Title = "Online Sınav Takvimi",
-                    Content = "Final sınavları 20-30 Haziran tarihleri arasında online olarak gerçekleştirilecektir.",
-                    ImageUrl = "https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?w=600&h=300&fit=crop"
+                    TenantId = tenant.Id,
+                    Title = "Yaz Kurslari Basliyor",
+                    Content = "Temmuz-Agustos aylarinda yogun kamp programimiz basliyor. Kontenjan sinirlidir!",
+                    ImageUrl = "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=600&h=300&fit=crop",
+                    IsImportant = false,
+                    PublishDate = DateTime.UtcNow.AddDays(-2)
                 },
                 new Announcement
                 {
-                    TenantId = demoTenantId,
-                    Title = "Ücretsiz Oryantasyon",
-                    Content = "Yeni öğrencilerimiz için ücretsiz oryantasyon programı 1 Şubat'ta başlıyor.",
-                    ImageUrl = "https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=600&h=300&fit=crop"
+                    TenantId = tenant.Id,
+                    Title = "Deneme Sinavi Sonuclari Aciklandi",
+                    Content = "Gecen hafta yapilan TYT deneme sinavi sonuclari aciklanmistir.",
+                    ImageUrl = "https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?w=600&h=300&fit=crop",
+                    IsImportant = false,
+                    PublishDate = DateTime.UtcNow.AddDays(-5)
                 },
                 new Announcement
                 {
-                    TenantId = demoTenantId,
-                    Title = "Kütüphane Bakım",
-                    Content = "Dijital kütüphane 10-12 Ocak tarihleri arasında bakımda.",
-                    ImageUrl = "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=600&h=300&fit=crop"
-                },
-                new Announcement
-                {
-                    TenantId = demoTenantId,
-                    Title = "Burs Başvuruları Uzatıldı!",
-                    Content = "2024 burs başvuruları 31 Ocak'a kadar. Başarılı öğrenciler için tam burs fırsatları!",
-                    ImageUrl = "https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=600&h=300&fit=crop",
-                    IsImportant = true
+                    TenantId = tenant.Id,
+                    Title = "Veli Toplantisi Duyurusu",
+                    Content = "25 Aralik Cumartesi gunu saat 14:00'te veli toplantimiz yapilacaktir.",
+                    ImageUrl = "https://images.unsplash.com/photo-1577896851231-70ef18881754?w=600&h=300&fit=crop",
+                    IsImportant = true,
+                    PublishDate = DateTime.UtcNow.AddDays(-1)
                 }
             );
             await db.SaveChangesAsync();
-            Log.Information("✅ 5 duyuru eklendi");
+
+            // ILETISIM BILGILERI
+            db.ContactInfos.Add(new ContactInfo
+            {
+                TenantId = tenant.Id,
+                Phone1 = "+90 (378) 227 45 67",
+                Phone1Label = "Sekreterlik",
+                Phone2 = "+90 (505) 656 20 60",
+                Phone2Label = "Whatsapp",
+                Phone3 = "+90 (378) 227 45 68",
+                Phone3Label = "Fax",
+                Email = "info@bartinsinavkurs.com",
+                Email2 = "kayit@bartinsinavkurs.com",
+                Address = "Kemerkopru Mahallesi, Cumhuriyet Caddesi No:45/A",
+                District = "Merkez",
+                City = "BARTIN",
+                PostalCode = "74100",
+                WorkingDays = "Pazartesi - Cumartesi",
+                WorkingHours = "08:30 - 21:00",
+                WhatsApp = "905056562060",
+                Instagram = "bartinsinavkurs",
+                Facebook = "bartinsinavkurs",
+                Twitter = "bartinsinav",
+                YouTube = "bartinsinavkurs",
+                GoogleMapsEmbedUrl = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2984.789!2d32.3375!3d41.6358",
+                PageLayout = "layout1"
+            });
+            await db.SaveChangesAsync();
+
+            Log.Information("Bartin Sinav Ileri Kurs sitesi olusturuldu!");
         }
 
-        Log.Information("═══════════════════════════════════");
-        Log.Information("🎉 CoreBuilder hazır!");
-        Log.Information("📍 https://localhost:5001");
-        Log.Information("👤 admin / Admin123!");
-        Log.Information("═══════════════════════════════════");
+        Log.Information("==========================================");
+        Log.Information("CoreBuilder hazir!");
+        Log.Information("https://localhost:5001");
+        Log.Information("admin / Admin123!");
+        Log.Information("==========================================");
     }
 
     app.Run();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "❌ Kritik hata!");
+    Log.Fatal(ex, "Kritik hata!");
 }
 finally
 {

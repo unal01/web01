@@ -1,55 +1,597 @@
 @page "/page/{PageId:guid}"
 @using CoreBuilder.Models
 @using CoreBuilder.Data
+@using CoreBuilder.Services
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
 @inject AppDbContext Context
 @inject NavigationManager Navigation
+@inject ContentService ContentService
+@inject PageContentService PageContentService
 
 <div class="container-fluid py-4">
     @if (pageObj == null)
     {
-        <div class="alert alert-info">Sayfa yükleniyor...</div>
+        <div class="alert alert-info">Sayfa yukleniyor...</div>
     }
     else
     {
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="fw-bold text-dark mb-0">Sayfa Düzenleme: @pageObj.Title</h3>
-            <button class="btn btn-outline-secondary" @onclick="GoBack">Geri Dön</button>
+            <div>
+                <button class="btn btn-outline-secondary btn-sm mb-2" @onclick="GoBack"><i class="bi bi-arrow-left"></i> Geri</button>
+                <h3 class="fw-bold">@pageObj.Title</h3>
+            </div>
+            <a href="/demo/@pageObj.TenantId/@pageObj.Slug" target="_blank" class="btn btn-outline-success"><i class="bi bi-eye me-2"></i>Onizle</a>
         </div>
 
-        <div class="card shadow-sm border-0">
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Başlık</label>
-                    <input class="form-control" @bind="pageObj.Title" />
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show">@successMessage<button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button></div>
+        }
+
+        <div class="row">
+            <div class="col-lg-4">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold"><i class="bi bi-file-text me-2"></i>Sayfa Bilgileri</h5></div>
+                    <div class="card-body">
+                        <div class="mb-3"><label class="form-label fw-bold">Baslik</label><input class="form-control" @bind="pageObj.Title" /></div>
+                        <div class="mb-3"><label class="form-label fw-bold">Slug</label><input class="form-control" @bind="pageObj.Slug" /></div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Ust Sayfa</label>
+                            <select class="form-select" @bind="selectedParentId">
+                                <option value="@Guid.Empty">-- Yok (Ana Menu) --</option>
+                                @foreach (var p in availableParents) { <option value="@p.Id">@p.Title</option> }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Sayfa Turu</label>
+                            <select class="form-select" @bind="pageObj.PageType">
+                                @foreach (PageType type in Enum.GetValues(typeof(PageType))) { <option value="@type">@type.GetDisplayName()</option> }
+                            </select>
+                        </div>
+                        <div class="mb-3"><label class="form-label fw-bold">Icerik</label><textarea class="form-control" @bind="pageObj.Content" rows="5"></textarea></div>
+                        <div class="form-check mb-3"><input class="form-check-input" type="checkbox" @bind="pageObj.IsPublished" id="publishCheck" /><label class="form-check-label" for="publishCheck">Yayinda</label></div>
+                        <button class="btn btn-primary w-100" @onclick="SavePage"><i class="bi bi-check-lg me-2"></i>Kaydet</button>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">İçerik (HTML)</label>
-                    <textarea class="form-control font-monospace" @bind="pageObj.Content" rows="12"></textarea>
+            </div>
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3"><h5 class="mb-0 fw-bold"><i class="bi bi-grid-3x3-gap me-2"></i>Icerikler</h5></div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap gap-2 mb-4 p-3 bg-light rounded">
+                            <button class="btn btn-outline-primary" @onclick="() => AddWidget(ContentType.WidgetSlider)"><i class="bi bi-images me-2"></i>Slider</button>
+                            <button class="btn btn-outline-warning" @onclick="() => AddWidget(ContentType.WidgetAnnouncements)"><i class="bi bi-megaphone me-2"></i>Duyurular</button>
+                            <button class="btn btn-outline-info" @onclick="() => AddWidget(ContentType.WidgetNews)"><i class="bi bi-newspaper me-2"></i>Haberler</button>
+                            <button class="btn btn-outline-success" @onclick="OpenMediaModal"><i class="bi bi-collection me-2"></i>Medya Ekle</button>
+                        </div>
+                        @foreach (var c in pageContents.OrderBy(x => x.DisplayOrder))
+                        {
+                            <div class="card mb-2 border @(c.IsActive ? "border-success" : "")">
+                                <div class="card-body d-flex align-items-center gap-2 py-2">
+                                    <div class="@GetWidgetColorClass(c.ContentType) text-white rounded p-2"><i class="bi @GetWidgetIcon(c.ContentType)"></i></div>
+                                    <div class="flex-grow-1"><strong>@c.Title</strong> <small class="text-muted">(@c.ContentType.GetDisplayName())</small></div>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => MoveWidget(c, -1)"><i class="bi bi-arrow-up"></i></button>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => MoveWidget(c, 1)"><i class="bi bi-arrow-down"></i></button>
+                                    <button class="btn btn-sm @(c.IsActive ? "btn-success" : "btn-outline-secondary")" @onclick="() => ToggleWidget(c)"><i class="bi bi-eye"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteWidget(c.Id)"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        }
+                    </div>
                 </div>
-                <button class="btn btn-primary w-100" @onclick="SavePage">Kaydet</button>
+
+                @if (pageContents.Any(c => c.ContentType == ContentType.WidgetSlider))
+                {
+                    <div class="card shadow-sm border-0 mb-4">
+                        <div class="card-header bg-primary text-white py-3 d-flex justify-content-between">
+                            <h5 class="mb-0"><i class="bi bi-images me-2"></i>Sliderlar</h5>
+                            <button class="btn btn-light btn-sm" @onclick="OpenSliderModal"><i class="bi bi-plus-lg"></i> Ekle</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-2">
+                                @foreach (var s in sliders.OrderBy(x => x.Order))
+                                {
+                                    <div class="col-md-4">
+                                        <div class="card border @(!s.ShowOnAllPages ? "border-info" : "")">
+                                            <img src="@s.ImageUrl" style="height: 80px; object-fit: cover;" />
+                                            <div class="card-body p-2">
+                                                <small class="d-block mb-1 text-truncate">@s.Title</small>
+                                                @if (!s.ShowOnAllPages) { <span class="badge bg-info mb-1">Secili Sayfalar</span> }
+                                                <div class="d-flex gap-1">
+                                                    <button class="btn btn-sm btn-outline-primary flex-fill" @onclick="() => EditSlider(s)"><i class="bi bi-pencil"></i></button>
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSlider(s.Id)"><i class="bi bi-trash"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (pageContents.Any(c => c.ContentType == ContentType.WidgetAnnouncements))
+                {
+                    <div class="card shadow-sm border-0 mb-4">
+                        <div class="card-header bg-warning py-3 d-flex justify-content-between">
+                            <h5 class="mb-0"><i class="bi bi-megaphone me-2"></i>Duyurular</h5>
+                            <button class="btn btn-dark btn-sm" @onclick="OpenAnnouncementModal"><i class="bi bi-plus-lg"></i> Ekle</button>
+                        </div>
+                        <div class="card-body">
+                            @if (!announcements.Any()) { <p class="text-muted text-center py-3">Henuz duyuru eklenmemis</p> }
+                            @foreach (var a in announcements.Take(10))
+                            {
+                                <div class="d-flex align-items-center border-bottom py-2 gap-2">
+                                    @if (!string.IsNullOrEmpty(a.ImageUrl)) { <img src="@a.ImageUrl" style="width:50px;height:50px;object-fit:cover;border-radius:4px;" /> }
+                                    else { <div style="width:50px;height:50px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center;"><i class="bi bi-megaphone text-muted"></i></div> }
+                                    <div class="flex-grow-1">
+                                        @if (a.IsImportant) { <span class="badge bg-danger me-1">!</span> }
+                                        @if (!a.ShowOnAllPages) { <span class="badge bg-info me-1">Secili</span> }
+                                        <strong>@a.Title</strong><br /><small class="text-muted">@a.PublishDate.ToString("dd.MM.yyyy")</small>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => EditAnnouncement(a)"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAnnouncement(a.Id)"><i class="bi bi-trash"></i></button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (pageContents.Any(c => c.ContentType == ContentType.WidgetNews))
+                {
+                    <div class="card shadow-sm border-0 mb-4">
+                        <div class="card-header bg-info text-white py-3 d-flex justify-content-between">
+                            <h5 class="mb-0"><i class="bi bi-newspaper me-2"></i>Haberler</h5>
+                            <button class="btn btn-light btn-sm" @onclick="OpenNewsModal"><i class="bi bi-plus-lg"></i> Ekle</button>
+                        </div>
+                        <div class="card-body">
+                            @if (!newsArticles.Any()) { <p class="text-muted text-center py-3">Henuz haber eklenmemis</p> }
+                            <div class="row g-2">
+                                @foreach (var n in newsArticles.Take(6))
+                                {
+                                    <div class="col-md-4">
+                                        <div class="card border h-100 @(!n.ShowOnAllPages ? "border-info" : "")">
+                                            @if (!string.IsNullOrEmpty(n.FeaturedImageUrl)) { <img src="@n.FeaturedImageUrl" style="height:80px;object-fit:cover;" /> }
+                                            else { <div style="height:80px;background:linear-gradient(135deg,#17a2b8,#138496);display:flex;align-items:center;justify-content:center;"><i class="bi bi-newspaper text-white" style="font-size:2rem;"></i></div> }
+                                            <div class="card-body p-2">
+                                                <small class="d-block mb-1 text-truncate fw-bold">@n.Title</small>
+                                                @if (!n.ShowOnAllPages) { <span class="badge bg-info mb-1">Secili</span> }
+                                                <small class="text-muted d-block">@n.PublishDate.ToString("dd.MM.yyyy")</small>
+                                                <div class="d-flex gap-1 mt-1">
+                                                    <button class="btn btn-sm btn-outline-primary flex-fill" @onclick="() => EditNews(n)"><i class="bi bi-pencil"></i></button>
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteNews(n.Id)"><i class="bi bi-trash"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @{
+                    var mediaItems = pageContents.Where(c => c.ContentType == ContentType.Image || c.ContentType == ContentType.Video).ToList();
+                }
+                @if (mediaItems.Any())
+                {
+                    <div class="card shadow-sm border-0 mb-4">
+                        <div class="card-header bg-success text-white py-3 d-flex justify-content-between">
+                            <h5 class="mb-0"><i class="bi bi-collection me-2"></i>Galeri (@mediaItems.Count medya)</h5>
+                            <button class="btn btn-light btn-sm" @onclick="OpenMediaModal"><i class="bi bi-plus-lg"></i> Ekle</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                @foreach (var m in mediaItems.OrderBy(x => x.DisplayOrder))
+                                {
+                                    <div class="col-md-3 col-6">
+                                        <div class="card border h-100 position-relative">
+                                            @if (m.ContentType == ContentType.Video)
+                                            {
+                                                @if (!string.IsNullOrEmpty(m.ThumbnailUrl))
+                                                {
+                                                    <img src="@m.ThumbnailUrl" class="card-img-top" style="height:100px;object-fit:cover;" />
+                                                }
+                                                else
+                                                {
+                                                    <div style="height:100px;background:linear-gradient(135deg,#6c757d,#495057);display:flex;align-items:center;justify-content:center;">
+                                                        <i class="bi bi-play-circle text-white" style="font-size:2.5rem;"></i>
+                                                    </div>
+                                                }
+                                                <span class="badge bg-danger position-absolute" style="top:5px;left:5px;"><i class="bi bi-camera-video"></i></span>
+                                            }
+                                            else
+                                            {
+                                                <img src="@m.MediaUrl" class="card-img-top" style="height:100px;object-fit:cover;" />
+                                                <span class="badge bg-success position-absolute" style="top:5px;left:5px;"><i class="bi bi-image"></i></span>
+                                            }
+                                            <div class="card-body p-2">
+                                                <small class="d-block text-truncate fw-bold">@(string.IsNullOrEmpty(m.Title) ? (m.ContentType == ContentType.Video ? "Video" : "Gorsel") : m.Title)</small>
+                                                <div class="d-flex gap-1 mt-1">
+                                                    <button class="btn btn-sm btn-outline-primary flex-fill" @onclick="() => EditMedia(m)"><i class="bi bi-pencil"></i></button>
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteWidget(m.Id)"><i class="bi bi-trash"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
         </div>
     }
 </div>
 
+@if (showSliderModal)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white"><h5>@(editingSlider ? "Slider Duzenle" : "Slider Ekle")</h5><button class="btn-close btn-close-white" @onclick="CloseSliderModal"></button></div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Gorsel</label>
+                            <div class="border rounded p-3 text-center bg-light" style="min-height:120px;">
+                                @if (!string.IsNullOrEmpty(sliderImagePreview)) { <img src="@sliderImagePreview" style="max-height:100px;" /><br /><button class="btn btn-sm btn-outline-danger mt-2" @onclick="ClearSliderImage">Kaldir</button> }
+                                else { <InputFile OnChange="OnSliderImageSelected" accept="image/*" class="form-control" /> }
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-2"><label>Baslik</label><input class="form-control" @bind="sliderTitle" /></div>
+                            <div class="mb-2"><label>Aciklama</label><textarea class="form-control" @bind="sliderDescription" rows="2"></textarea></div>
+                            <div class="mb-2"><label>Buton</label><input class="form-control" @bind="sliderButtonText" /></div>
+                            <div class="mb-2"><label>Link</label><input class="form-control" @bind="sliderButtonLink" /></div>
+                        </div>
+                    </div>
+                    <hr />
+                    <div class="bg-light p-3 rounded">
+                        <label class="form-label fw-bold"><i class="bi bi-funnel me-1"></i>Gosterilecek Sayfalar</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" @bind="sliderShowOnAllPages" id="sliderAllPages" />
+                            <label class="form-check-label" for="sliderAllPages">Tum Sayfalarda Goster</label>
+                        </div>
+                        @if (!sliderShowOnAllPages)
+                        {
+                            <div class="border rounded p-2 bg-white" style="max-height:150px;overflow-y:auto;">
+                                @foreach (var pg in allSitePages)
+                                {
+                                    var pid = pg.Id;
+                                    var pTitle = pg.Title;
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" checked="@sliderSelectedPages.Contains(pid)" @onchange="@(e => ToggleSliderPage(pid, (bool)e.Value!))" />
+                                        <label class="form-check-label">@pTitle</label>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseSliderModal">Iptal</button>
+                    <button class="btn btn-primary" @onclick="SaveSlider" disabled="@(string.IsNullOrEmpty(sliderTitle) || string.IsNullOrEmpty(sliderImagePreview))">Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showAnnouncementModal)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-warning"><h5>@(editingAnnouncement ? "Duyuru Duzenle" : "Duyuru Ekle")</h5><button class="btn-close" @onclick="CloseAnnouncementModal"></button></div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold">Duyuru Gorseli</label>
+                            <div class="border rounded p-3 text-center bg-light" style="min-height:120px;">
+                                @if (!string.IsNullOrEmpty(annImagePreview)) { <img src="@annImagePreview" style="max-height:100px;max-width:100%;" /><br /><button class="btn btn-sm btn-outline-danger mt-2" @onclick="ClearAnnImage">Kaldir</button> }
+                                else { <i class="bi bi-image text-muted" style="font-size:2rem;"></i><InputFile OnChange="OnAnnImageSelected" accept="image/*" class="form-control form-control-sm mt-2" /> }
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="mb-2"><label class="form-label fw-bold">Baslik *</label><input class="form-control" @bind="annTitle" /></div>
+                            <div class="mb-2"><label class="form-label">Icerik</label><textarea class="form-control" @bind="annContent" rows="3"></textarea></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" @bind="annIsImportant" /><label class="form-check-label">Onemli Duyuru</label></div>
+                        </div>
+                    </div>
+                    <hr />
+                    <div class="bg-light p-3 rounded">
+                        <label class="form-label fw-bold"><i class="bi bi-funnel me-1"></i>Gosterilecek Sayfalar</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" @bind="annShowOnAllPages" id="annAllPages" />
+                            <label class="form-check-label" for="annAllPages">Tum Sayfalarda Goster</label>
+                        </div>
+                        @if (!annShowOnAllPages)
+                        {
+                            <div class="border rounded p-2 bg-white" style="max-height:150px;overflow-y:auto;">
+                                @foreach (var pg in allSitePages)
+                                {
+                                    var pid = pg.Id;
+                                    var pTitle = pg.Title;
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" checked="@annSelectedPages.Contains(pid)" @onchange="@(e => ToggleAnnPage(pid, (bool)e.Value!))" />
+                                        <label class="form-check-label">@pTitle</label>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseAnnouncementModal">Iptal</button>
+                    <button class="btn btn-warning" @onclick="SaveAnnouncement" disabled="@(string.IsNullOrEmpty(annTitle))">Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showNewsModal)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white"><h5>@(editingNews ? "Haber Duzenle" : "Haber Ekle")</h5><button class="btn-close btn-close-white" @onclick="CloseNewsModal"></button></div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold">Haber Gorseli</label>
+                            <div class="border rounded p-3 text-center bg-light" style="min-height:120px;">
+                                @if (!string.IsNullOrEmpty(newsImagePreview)) { <img src="@newsImagePreview" style="max-height:100px;max-width:100%;" /><br /><button class="btn btn-sm btn-outline-danger mt-2" @onclick="ClearNewsImage">Kaldir</button> }
+                                else { <i class="bi bi-newspaper text-muted" style="font-size:2rem;"></i><InputFile OnChange="OnNewsImageSelected" accept="image/*" class="form-control form-control-sm mt-2" /> }
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="mb-2"><label class="form-label fw-bold">Baslik *</label><input class="form-control" @bind="newsTitle" /></div>
+                            <div class="mb-2"><label class="form-label">Ozet</label><input class="form-control" @bind="newsSummary" /></div>
+                            <div class="mb-2"><label class="form-label">Icerik *</label><textarea class="form-control" @bind="newsContent" rows="3"></textarea></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" @bind="newsIsFeatured" /><label class="form-check-label">One Cikan Haber</label></div>
+                        </div>
+                    </div>
+                    <hr />
+                    <div class="bg-light p-3 rounded">
+                        <label class="form-label fw-bold"><i class="bi bi-funnel me-1"></i>Gosterilecek Sayfalar</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" @bind="newsShowOnAllPages" id="newsAllPages" />
+                            <label class="form-check-label" for="newsAllPages">Tum Sayfalarda Goster</label>
+                        </div>
+                        @if (!newsShowOnAllPages)
+                        {
+                            <div class="border rounded p-2 bg-white" style="max-height:150px;overflow-y:auto;">
+                                @foreach (var pg in allSitePages)
+                                {
+                                    var pid = pg.Id;
+                                    var pTitle = pg.Title;
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" checked="@newsSelectedPages.Contains(pid)" @onchange="@(e => ToggleNewsPage(pid, (bool)e.Value!))" />
+                                        <label class="form-check-label">@pTitle</label>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseNewsModal">Iptal</button>
+                    <button class="btn btn-info text-white" @onclick="SaveNews" disabled="@(string.IsNullOrEmpty(newsTitle) || string.IsNullOrEmpty(newsContent))">Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showMediaModal)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white"><h5>@(editingMedia ? "Medya Duzenle" : "Medya Ekle")</h5><button class="btn-close btn-close-white" @onclick="CloseMediaModal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Medya Turu</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="mediaType" id="typeImage" checked="@(mediaType == ContentType.Image)" @onchange="() => mediaType = ContentType.Image" />
+                            <label class="btn btn-outline-success" for="typeImage"><i class="bi bi-image me-2"></i>Gorsel</label>
+                            <input type="radio" class="btn-check" name="mediaType" id="typeVideo" checked="@(mediaType == ContentType.Video)" @onchange="() => mediaType = ContentType.Video" />
+                            <label class="btn btn-outline-danger" for="typeVideo"><i class="bi bi-camera-video me-2"></i>Video</label>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            @if (mediaType == ContentType.Image)
+                            {
+                                <label class="form-label fw-bold">Gorsel Yukle</label>
+                                <div class="border rounded p-3 text-center bg-light" style="min-height:150px;">
+                                    @if (!string.IsNullOrEmpty(mediaPreview)) 
+                                    { 
+                                        <img src="@mediaPreview" style="max-height:120px;max-width:100%;" /><br />
+                                        <button class="btn btn-sm btn-outline-danger mt-2" @onclick="ClearMediaPreview">Kaldir</button> 
+                                    }
+                                    else 
+                                    { 
+                                        <i class="bi bi-cloud-arrow-up text-muted" style="font-size:2.5rem;"></i>
+                                        <InputFile OnChange="OnMediaImageSelected" accept="image/*" class="form-control mt-2" /> 
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <label class="form-label fw-bold">Video Kaynagi</label>
+                                <div class="mb-2">
+                                    <select class="form-select" @bind="videoSourceType">
+                                        <option value="upload">Video Dosyasi Yukle</option>
+                                        <option value="youtube">YouTube Linki</option>
+                                        <option value="embed">Embed Kodu</option>
+                                    </select>
+                                </div>
+                                @if (videoSourceType == "upload")
+                                {
+                                    <div class="border rounded p-3 text-center bg-light">
+                                        @if (!string.IsNullOrEmpty(mediaUrl)) 
+                                        { 
+                                            <i class="bi bi-check-circle text-success" style="font-size:2rem;"></i>
+                                            <p class="mb-0 small">Video yuklendi</p>
+                                            <button class="btn btn-sm btn-outline-danger mt-2" @onclick="ClearMediaPreview">Kaldir</button> 
+                                        }
+                                        else 
+                                        { 
+                                            <i class="bi bi-camera-video text-muted" style="font-size:2rem;"></i>
+                                            <InputFile OnChange="OnVideoSelected" accept="video/*" class="form-control mt-2" />
+                                            <small class="text-muted">Max 50MB</small>
+                                        }
+                                    </div>
+                                }
+                                else if (videoSourceType == "youtube")
+                                {
+                                    <input class="form-control" @bind="mediaUrl" placeholder="https://www.youtube.com/watch?v=..." />
+                                    <small class="text-muted">YouTube video linkini yapistirin</small>
+                                }
+                                else
+                                {
+                                    <textarea class="form-control" @bind="mediaEmbedCode" rows="3" placeholder="<iframe src='...'></iframe>"></textarea>
+                                    <small class="text-muted">Video embed kodunu yapistirin</small>
+                                }
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-2"><label class="form-label fw-bold">Baslik</label><input class="form-control" @bind="mediaTitle" /></div>
+                            <div class="mb-2"><label class="form-label">Aciklama</label><textarea class="form-control" @bind="mediaDescription" rows="2"></textarea></div>
+                            @if (mediaType == ContentType.Video)
+                            {
+                                <div class="mb-2">
+                                    <label class="form-label">Thumbnail Gorseli</label>
+                                    <div class="border rounded p-2 text-center bg-light">
+                                        @if (!string.IsNullOrEmpty(mediaThumbnail)) 
+                                        { 
+                                            <img src="@mediaThumbnail" style="max-height:60px;" /><br />
+                                            <button class="btn btn-sm btn-outline-danger mt-1" @onclick="() => mediaThumbnail = string.Empty">Kaldir</button> 
+                                        }
+                                        else 
+                                        { 
+                                            <InputFile OnChange="OnThumbnailSelected" accept="image/*" class="form-control form-control-sm" /> 
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseMediaModal">Iptal</button>
+                    <button class="btn btn-success" @onclick="SaveMedia" disabled="@(!CanSaveMedia())">Kaydet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid PageId { get; set; }
-    private Page? pageObj; // Değişken adını çakışma olmaması için pageObj yaptık
+    private Page? pageObj;
+    private List<Page> availableParents = new();
+    private List<Page> allSitePages = new();
+    private List<PageContent> pageContents = new();
+    private List<Slider> sliders = new();
+    private List<Announcement> announcements = new();
+    private List<NewsArticle> newsArticles = new();
+    private string successMessage = "";
+    private Guid selectedParentId = Guid.Empty;
+    private long maxFileSize = 5 * 1024 * 1024;
+    private long maxVideoSize = 50 * 1024 * 1024;
+    
+    private bool showSliderModal, editingSlider;
+    private Guid editingSliderId;
+    private string sliderTitle = "", sliderDescription = "", sliderImagePreview = "", sliderButtonText = "", sliderButtonLink = "";
+    private bool sliderShowOnAllPages = true;
+    private HashSet<Guid> sliderSelectedPages = new();
+    
+    private bool showAnnouncementModal, editingAnnouncement;
+    private Guid editingAnnouncementId;
+    private string annTitle = "", annContent = "", annImagePreview = "";
+    private bool annIsImportant, annShowOnAllPages = true;
+    private HashSet<Guid> annSelectedPages = new();
+    
+    private bool showNewsModal, editingNews;
+    private Guid editingNewsId;
+    private string newsTitle = "", newsSummary = "", newsContent = "", newsImagePreview = "";
+    private bool newsIsFeatured, newsShowOnAllPages = true;
+    private HashSet<Guid> newsSelectedPages = new();
+    
+    private bool showMediaModal, editingMedia;
+    private Guid editingMediaId;
+    private ContentType mediaType = ContentType.Image;
+    private string mediaTitle = "", mediaDescription = "", mediaPreview = "", mediaUrl = "", mediaEmbedCode = "", mediaThumbnail = "";
+    private string videoSourceType = "upload";
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        pageObj = Context.Pages.Find(PageId);
-    }
-
-    private void SavePage()
-    {
+        pageObj = await Context.Pages.FirstOrDefaultAsync(p => p.Id == PageId);
         if (pageObj != null)
         {
-            Context.Pages.Update(pageObj);
-            Context.SaveChanges();
-            Navigation.NavigateTo("/pages");
+            selectedParentId = pageObj.ParentPageId ?? Guid.Empty;
+            availableParents = await Context.Pages.Where(p => p.TenantId == pageObj.TenantId && p.Id != pageObj.Id && p.ParentPageId == null).ToListAsync();
+            allSitePages = await Context.Pages.Where(p => p.TenantId == pageObj.TenantId).OrderBy(p => p.MenuOrder).ToListAsync();
+            pageContents = await PageContentService.GetPageContentsAsync(PageId);
+            sliders = await ContentService.GetSlidersAsync(pageObj.TenantId);
+            announcements = await ContentService.GetAnnouncementsAsync(pageObj.TenantId);
+            newsArticles = await ContentService.GetNewsArticlesAsync(pageObj.TenantId);
         }
     }
 
-    private void GoBack() => Navigation.NavigateTo("/pages");
+    private async Task SavePage() { if (pageObj != null) { pageObj.ParentPageId = selectedParentId == Guid.Empty ? null : selectedParentId; Context.Pages.Update(pageObj); await Context.SaveChangesAsync(); successMessage = "Kaydedildi!"; } }
+    private async Task AddWidget(ContentType type) { await PageContentService.CreateContentAsync(new PageContent { PageId = PageId, ContentType = type, Title = GetWidgetTypeName(type), DisplayOrder = pageContents.Count, IsActive = true }); pageContents = await PageContentService.GetPageContentsAsync(PageId); }
+    private async Task MoveWidget(PageContent c, int dir) { var newOrder = c.DisplayOrder + dir; if (newOrder < 0) return; var other = pageContents.FirstOrDefault(x => x.DisplayOrder == newOrder); if (other != null) { other.DisplayOrder = c.DisplayOrder; await PageContentService.UpdateContentAsync(other); } c.DisplayOrder = newOrder; await PageContentService.UpdateContentAsync(c); pageContents = await PageContentService.GetPageContentsAsync(PageId); }
+    private async Task ToggleWidget(PageContent c) { c.IsActive = !c.IsActive; await PageContentService.UpdateContentAsync(c); pageContents = await PageContentService.GetPageContentsAsync(PageId); }
+    private async Task DeleteWidget(Guid id) { await PageContentService.DeleteContentAsync(id); pageContents = await PageContentService.GetPageContentsAsync(PageId); }
+
+    private void ToggleSliderPage(Guid pageId, bool isChecked) { if (isChecked) sliderSelectedPages.Add(pageId); else sliderSelectedPages.Remove(pageId); }
+    private void ToggleAnnPage(Guid pageId, bool isChecked) { if (isChecked) annSelectedPages.Add(pageId); else annSelectedPages.Remove(pageId); }
+    private void ToggleNewsPage(Guid pageId, bool isChecked) { if (isChecked) newsSelectedPages.Add(pageId); else newsSelectedPages.Remove(pageId); }
+
+    private void OpenSliderModal() { editingSlider = false; editingSliderId = Guid.Empty; sliderTitle = ""; sliderDescription = ""; sliderImagePreview = ""; sliderButtonText = ""; sliderButtonLink = ""; sliderShowOnAllPages = true; sliderSelectedPages.Clear(); showSliderModal = true; }
+    private void CloseSliderModal() { showSliderModal = false; }
+    private void ClearSliderImage() { sliderImagePreview = ""; }
+    private void EditSlider(Slider s) { editingSlider = true; editingSliderId = s.Id; sliderTitle = s.Title; sliderDescription = s.Description ?? ""; sliderImagePreview = s.ImageUrl; sliderButtonText = s.ButtonText ?? ""; sliderButtonLink = s.ButtonLink ?? ""; sliderShowOnAllPages = s.ShowOnAllPages; sliderSelectedPages = string.IsNullOrEmpty(s.PageIds) ? new HashSet<Guid>() : s.PageIds.Split(',').Select(x => Guid.Parse(x)).ToHashSet(); showSliderModal = true; }
+    private async Task OnSliderImageSelected(InputFileChangeEventArgs e) { var file = e.File; if (file.Size > maxFileSize) return; using var stream = file.OpenReadStream(maxFileSize); using var ms = new MemoryStream(); await stream.CopyToAsync(ms); sliderImagePreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}"; }
+    private async Task SaveSlider() { if (string.IsNullOrEmpty(sliderTitle) || string.IsNullOrEmpty(sliderImagePreview)) return; var pageIds = sliderShowOnAllPages ? null : string.Join(",", sliderSelectedPages); if (!editingSlider) { Context.Sliders.Add(new Slider { TenantId = pageObj!.TenantId, Title = sliderTitle, ImageUrl = sliderImagePreview, Description = sliderDescription, ButtonText = sliderButtonText, ButtonLink = sliderButtonLink, Order = sliders.Count + 1, IsActive = true, ShowOnAllPages = sliderShowOnAllPages, PageIds = pageIds }); } else { var s = await Context.Sliders.FindAsync(editingSliderId); if (s != null) { s.Title = sliderTitle; s.Description = sliderDescription; s.ImageUrl = sliderImagePreview; s.ButtonText = sliderButtonText; s.ButtonLink = sliderButtonLink; s.ShowOnAllPages = sliderShowOnAllPages; s.PageIds = pageIds; } } await Context.SaveChangesAsync(); sliders = await ContentService.GetSlidersAsync(pageObj!.TenantId); successMessage = editingSlider ? "Slider guncellendi!" : "Slider eklendi!"; CloseSliderModal(); }
+    private async Task DeleteSlider(Guid id) { var s = await Context.Sliders.FindAsync(id); if (s != null) { Context.Sliders.Remove(s); await Context.SaveChangesAsync(); sliders = await ContentService.GetSlidersAsync(pageObj!.TenantId); } }
+
+    private void OpenAnnouncementModal() { editingAnnouncement = false; editingAnnouncementId = Guid.Empty; annTitle = ""; annContent = ""; annImagePreview = ""; annIsImportant = false; annShowOnAllPages = true; annSelectedPages.Clear(); showAnnouncementModal = true; }
+    private void CloseAnnouncementModal() { showAnnouncementModal = false; }
+    private void ClearAnnImage() { annImagePreview = ""; }
+    private void EditAnnouncement(Announcement a) { editingAnnouncement = true; editingAnnouncementId = a.Id; annTitle = a.Title; annContent = a.Content; annImagePreview = a.ImageUrl ?? ""; annIsImportant = a.IsImportant; annShowOnAllPages = a.ShowOnAllPages; annSelectedPages = string.IsNullOrEmpty(a.PageIds) ? new HashSet<Guid>() : a.PageIds.Split(',').Select(x => Guid.Parse(x)).ToHashSet(); showAnnouncementModal = true; }
+    private async Task OnAnnImageSelected(InputFileChangeEventArgs e) { var file = e.File; if (file.Size > maxFileSize) return; using var stream = file.OpenReadStream(maxFileSize); using var ms = new MemoryStream(); await stream.CopyToAsync(ms); annImagePreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}"; }
+    private async Task SaveAnnouncement() { if (string.IsNullOrEmpty(annTitle)) return; var pageIds = annShowOnAllPages ? null : string.Join(",", annSelectedPages); if (!editingAnnouncement) { var ann = new Announcement { TenantId = pageObj!.TenantId, Title = annTitle, Content = string.IsNullOrEmpty(annContent) ? annTitle : annContent, ImageUrl = string.IsNullOrEmpty(annImagePreview) ? null : annImagePreview, IsImportant = annIsImportant, IsPublished = true, PublishDate = DateTime.UtcNow, ShowOnAllPages = annShowOnAllPages, PageIds = pageIds }; await ContentService.CreateAnnouncementAsync(ann); } else { var a = await Context.Announcements.FindAsync(editingAnnouncementId); if (a != null) { a.Title = annTitle; a.Content = string.IsNullOrEmpty(annContent) ? annTitle : annContent; a.ImageUrl = string.IsNullOrEmpty(annImagePreview) ? null : annImagePreview; a.IsImportant = annIsImportant; a.ShowOnAllPages = annShowOnAllPages; a.PageIds = pageIds; await Context.SaveChangesAsync(); } } announcements = await ContentService.GetAnnouncementsAsync(pageObj!.TenantId); successMessage = editingAnnouncement ? "Duyuru guncellendi!" : "Duyuru eklendi!"; CloseAnnouncementModal(); }
+    private async Task DeleteAnnouncement(Guid id) { await ContentService.DeleteAnnouncementAsync(id); announcements = await ContentService.GetAnnouncementsAsync(pageObj!.TenantId); }
+
+    private void OpenNewsModal() { editingNews = false; editingNewsId = Guid.Empty; newsTitle = ""; newsSummary = ""; newsContent = ""; newsImagePreview = ""; newsIsFeatured = false; newsShowOnAllPages = true; newsSelectedPages.Clear(); showNewsModal = true; }
+    private void CloseNewsModal() { showNewsModal = false; }
+    private void ClearNewsImage() { newsImagePreview = ""; }
+    private void EditNews(NewsArticle n) { editingNews = true; editingNewsId = n.Id; newsTitle = n.Title; newsSummary = n.Summary ?? ""; newsContent = n.Content; newsImagePreview = n.FeaturedImageUrl ?? ""; newsIsFeatured = n.IsFeatured; newsShowOnAllPages = n.ShowOnAllPages; newsSelectedPages = string.IsNullOrEmpty(n.PageIds) ? new HashSet<Guid>() : n.PageIds.Split(',').Select(x => Guid.Parse(x)).ToHashSet(); showNewsModal = true; }
+    private async Task OnNewsImageSelected(InputFileChangeEventArgs e) { var file = e.File; if (file.Size > maxFileSize) return; using var stream = file.OpenReadStream(maxFileSize); using var ms = new MemoryStream(); await stream.CopyToAsync(ms); newsImagePreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}"; }
+    private async Task SaveNews() { if (string.IsNullOrEmpty(newsTitle) || string.IsNullOrEmpty(newsContent)) return; var slug = newsTitle.ToLower().Replace(" ", "-").Replace(".", "").Replace(",", ""); var pageIds = newsShowOnAllPages ? null : string.Join(",", newsSelectedPages); if (!editingNews) { var news = new NewsArticle { TenantId = pageObj!.TenantId, Title = newsTitle, Slug = slug, Summary = newsSummary, Content = newsContent, FeaturedImageUrl = string.IsNullOrEmpty(newsImagePreview) ? null : newsImagePreview, IsFeatured = newsIsFeatured, IsPublished = true, PublishDate = DateTime.UtcNow, ShowOnAllPages = newsShowOnAllPages, PageIds = pageIds }; await ContentService.CreateNewsArticleAsync(news); } else { var n = await Context.NewsArticles.FindAsync(editingNewsId); if (n != null) { n.Title = newsTitle; n.Slug = slug; n.Summary = newsSummary; n.Content = newsContent; n.FeaturedImageUrl = string.IsNullOrEmpty(newsImagePreview) ? null : newsImagePreview; n.IsFeatured = newsIsFeatured; n.UpdatedAt = DateTime.UtcNow; n.ShowOnAllPages = newsShowOnAllPages; n.PageIds = pageIds; await Context.SaveChangesAsync(); } } newsArticles = await ContentService.GetNewsArticlesAsync(pageObj!.TenantId); successMessage = editingNews ? "Haber guncellendi!" : "Haber eklendi!"; CloseNewsModal(); }
+    private async Task DeleteNews(Guid id) { await ContentService.DeleteNewsArticleAsync(id); newsArticles = await ContentService.GetNewsArticlesAsync(pageObj!.TenantId); }
+
+    private void OpenMediaModal() { editingMedia = false; editingMediaId = Guid.Empty; mediaType = ContentType.Image; mediaTitle = ""; mediaDescription = ""; mediaPreview = ""; mediaUrl = ""; mediaEmbedCode = ""; mediaThumbnail = ""; videoSourceType = "upload"; showMediaModal = true; }
+    private void CloseMediaModal() { showMediaModal = false; }
+    private void ClearMediaPreview() { mediaPreview = ""; mediaUrl = ""; }
+    private void EditMedia(PageContent m) { editingMedia = true; editingMediaId = m.Id; mediaType = m.ContentType; mediaTitle = m.Title; mediaDescription = m.Description ?? ""; mediaUrl = m.MediaUrl ?? ""; mediaEmbedCode = m.EmbedCode ?? ""; mediaThumbnail = m.ThumbnailUrl ?? ""; mediaPreview = m.ContentType == ContentType.Image ? m.MediaUrl ?? "" : ""; videoSourceType = !string.IsNullOrEmpty(m.EmbedCode) ? "embed" : (m.MediaUrl?.Contains("youtube") == true ? "youtube" : "upload"); showMediaModal = true; }
+    private async Task OnMediaImageSelected(InputFileChangeEventArgs e) { var file = e.File; if (file.Size > maxFileSize) return; using var stream = file.OpenReadStream(maxFileSize); using var ms = new MemoryStream(); await stream.CopyToAsync(ms); mediaPreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}"; mediaUrl = mediaPreview; }
+    private async Task OnVideoSelected(InputFileChangeEventArgs e) { var file = e.File; if (file.Size > maxVideoSize) { successMessage = "Video dosyasi cok buyuk (max 50MB)"; return; } using var stream = file.OpenReadStream(maxVideoSize); using var ms = new MemoryStream(); await stream.CopyToAsync(ms); mediaUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}"; }
+    private async Task OnThumbnailSelected(InputFileChangeEventArgs e) { var file = e.File; if (file.Size > maxFileSize) return; using var stream = file.OpenReadStream(maxFileSize); using var ms = new MemoryStream(); await stream.CopyToAsync(ms); mediaThumbnail = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}"; }
+    private bool CanSaveMedia() { if (mediaType == ContentType.Image) return !string.IsNullOrEmpty(mediaPreview); if (videoSourceType == "embed") return !string.IsNullOrEmpty(mediaEmbedCode); return !string.IsNullOrEmpty(mediaUrl); }
+    private string ConvertYouTubeToEmbed(string url) { if (string.IsNullOrEmpty(url)) return ""; var videoId = ""; if (url.Contains("youtube.com/watch?v=")) videoId = url.Split("v=")[1].Split("&")[0]; else if (url.Contains("youtu.be/")) videoId = url.Split("youtu.be/")[1].Split("?")[0]; if (!string.IsNullOrEmpty(videoId)) return $"<iframe width=\"100%\" height=\"100%\" src=\"https://www.youtube.com/embed/{videoId}\" frameborder=\"0\" allowfullscreen></iframe>"; return ""; }
+    private async Task SaveMedia() { var finalUrl = mediaType == ContentType.Image ? mediaPreview : mediaUrl; var finalEmbed = ""; if (mediaType == ContentType.Video) { if (videoSourceType == "youtube") finalEmbed = ConvertYouTubeToEmbed(mediaUrl); else if (videoSourceType == "embed") finalEmbed = mediaEmbedCode; } if (!editingMedia) { await PageContentService.CreateContentAsync(new PageContent { PageId = PageId, ContentType = mediaType, Title = string.IsNullOrEmpty(mediaTitle) ? (mediaType == ContentType.Video ? "Video" : "Gorsel") : mediaTitle, Description = mediaDescription, MediaUrl = finalUrl, EmbedCode = finalEmbed, ThumbnailUrl = mediaThumbnail, DisplayOrder = pageContents.Count, IsActive = true }); successMessage = mediaType == ContentType.Video ? "Video eklendi!" : "Gorsel eklendi!"; } else { var m = await Context.PageContents.FindAsync(editingMediaId); if (m != null) { m.Title = string.IsNullOrEmpty(mediaTitle) ? (mediaType == ContentType.Video ? "Video" : "Gorsel") : mediaTitle; m.Description = mediaDescription; m.MediaUrl = finalUrl; m.EmbedCode = finalEmbed; m.ThumbnailUrl = mediaThumbnail; await Context.SaveChangesAsync(); } successMessage = "Medya guncellendi!"; } pageContents = await PageContentService.GetPageContentsAsync(PageId); CloseMediaModal(); }
+
+    private string GetWidgetIcon(ContentType t) => t switch { ContentType.WidgetSlider => "bi-images", ContentType.WidgetAnnouncements => "bi-megaphone", ContentType.WidgetNews => "bi-newspaper", ContentType.Image => "bi-image", ContentType.Video => "bi-camera-video", _ => "bi-grid" };
+    private string GetWidgetColorClass(ContentType t) => t switch { ContentType.WidgetSlider => "bg-primary", ContentType.WidgetAnnouncements => "bg-warning", ContentType.WidgetNews => "bg-info", ContentType.Image => "bg-success", ContentType.Video => "bg-danger", _ => "bg-secondary" };
+    private string GetWidgetTypeName(ContentType t) => t switch { ContentType.WidgetSlider => "Slider", ContentType.WidgetAnnouncements => "Duyurular", ContentType.WidgetNews => "Haberler", ContentType.Image => "Gorsel", ContentType.Video => "Video", _ => "Widget" };
+    private void GoBack() => Navigation.NavigateTo(pageObj != null ? $"/pages/{pageObj.TenantId}" : "/pages");
 }

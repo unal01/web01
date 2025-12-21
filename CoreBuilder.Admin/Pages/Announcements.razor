@@ -1,9 +1,11 @@
 @page "/announcements"
+@page "/announcements/{TenantIdParam:guid?}"
 @using CoreBuilder.Models
 @using CoreBuilder.Services
 @using CoreBuilder.Data
 @inject ContentService ContentService
 @inject AppDbContext Context
+@inject NavigationManager Navigation
 
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -56,9 +58,12 @@
                             <p class="card-text small text-muted">@announcement.Content.Substring(0, Math.Min(100, announcement.Content.Length))...</p>
                             <small class="text-muted">@announcement.PublishDate.ToString("dd MMM yyyy")</small>
                         </div>
-                        <div class="card-footer bg-white border-0">
-                            <button class="btn btn-sm btn-outline-danger w-100" @onclick="() => DeleteAnnouncement(announcement.Id)">
-                                <span class="oi oi-trash me-2"></span>Sil
+                        <div class="card-footer bg-white border-0 d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary flex-grow-1" @onclick="() => OpenEditModal(announcement)">
+                                <span class="oi oi-pencil me-1"></span>Düzenle
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAnnouncement(announcement.Id)">
+                                <span class="oi oi-trash"></span>
                             </button>
                         </div>
                     </div>
@@ -79,11 +84,11 @@
 
 @if (showAddModal)
 {
-    <div class="modal d-block" style="background: rgba(0,0,0,0.5);">
-        <div class="modal-dialog modal-lg">
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5); z-index: 1050;">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">Yeni Duyuru</h5>
+                    <h5 class="modal-title">@(editingAnnouncementId == Guid.Empty ? "Yeni Duyuru" : "Duyuru Düzenle")</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
                 </div>
                 <div class="modal-body p-4">
@@ -97,7 +102,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Resim URL (opsiyonel)</label>
-                        <input class="form-control" @bind="newImageUrl" />
+                        <input class="form-control" @bind="newImageUrl" placeholder="https://..." />
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" @bind="newIsImportant" id="importantCheck">
@@ -106,7 +111,7 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CloseModal">İptal</button>
-                    <button class="btn btn-primary" @onclick="SaveAnnouncement">Yayınla</button>
+                    <button class="btn btn-primary" @onclick="SaveAnnouncement">@(editingAnnouncementId == Guid.Empty ? "Yayınla" : "Güncelle")</button>
                 </div>
             </div>
         </div>
@@ -114,11 +119,14 @@
 }
 
 @code {
+    [Parameter] public Guid? TenantIdParam { get; set; }
+    
     private List<Tenant> Tenants = new();
     private List<Announcement> announcements = new();
     private Guid selectedTenantId;
     private bool showAddModal = false;
     private string successMessage = "";
+    private Guid editingAnnouncementId = Guid.Empty;
 
     private string newTitle = "";
     private string newContent = "";
@@ -128,22 +136,53 @@
     private Guid SelectedTenantId
     {
         get => selectedTenantId;
-        set { selectedTenantId = value; LoadAnnouncements(); }
+        set 
+        { 
+            selectedTenantId = value; 
+            LoadAnnouncements();
+            if (value != Guid.Empty)
+            {
+                Navigation.NavigateTo($"/announcements/{value}", false);
+            }
+        }
     }
 
-    protected override void OnInitialized() => Tenants = Context.Tenants.ToList();
+    protected override void OnInitialized()
+    {
+        Tenants = Context.Tenants.ToList();
+        
+        if (TenantIdParam.HasValue && TenantIdParam.Value != Guid.Empty)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadAnnouncements();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (TenantIdParam.HasValue && TenantIdParam.Value != selectedTenantId)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadAnnouncements();
+        }
+    }
 
     private async void LoadAnnouncements()
     {
         if (SelectedTenantId != Guid.Empty)
         {
-            announcements = await ContentService.GetAnnouncementsAsync(SelectedTenantId);
+            announcements = Context.Announcements
+                .Where(a => a.TenantId == SelectedTenantId)
+                .OrderByDescending(a => a.IsImportant)
+                .ThenByDescending(a => a.PublishDate)
+                .ToList();
             StateHasChanged();
         }
     }
 
     private void OpenAddModal()
     {
+        editingAnnouncementId = Guid.Empty;
         newTitle = "";
         newContent = "";
         newImageUrl = "";
@@ -151,25 +190,61 @@
         showAddModal = true;
     }
 
-    private void CloseModal() => showAddModal = false;
+    private void OpenEditModal(Announcement announcement)
+    {
+        editingAnnouncementId = announcement.Id;
+        newTitle = announcement.Title;
+        newContent = announcement.Content;
+        newImageUrl = announcement.ImageUrl ?? "";
+        newIsImportant = announcement.IsImportant;
+        showAddModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showAddModal = false;
+        editingAnnouncementId = Guid.Empty;
+    }
 
     private async Task SaveAnnouncement()
     {
         if (string.IsNullOrWhiteSpace(newTitle) || string.IsNullOrWhiteSpace(newContent))
             return;
 
-        var announcement = new Announcement
+        if (editingAnnouncementId == Guid.Empty)
         {
-            TenantId = SelectedTenantId,
-            Title = newTitle,
-            Content = newContent,
-            ImageUrl = newImageUrl,
-            IsImportant = newIsImportant
-        };
+            // Yeni duyuru
+            var announcement = new Announcement
+            {
+                TenantId = SelectedTenantId,
+                Title = newTitle,
+                Content = newContent,
+                ImageUrl = newImageUrl,
+                IsImportant = newIsImportant
+            };
 
-        await ContentService.CreateAnnouncementAsync(announcement);
-        successMessage = "Duyuru yayınlandı!";
+            await ContentService.CreateAnnouncementAsync(announcement);
+            successMessage = "Duyuru yayınlandı!";
+        }
+        else
+        {
+            // Duyuru güncelle
+            var announcement = await Context.Announcements.FindAsync(editingAnnouncementId);
+            if (announcement != null)
+            {
+                announcement.Title = newTitle;
+                announcement.Content = newContent;
+                announcement.ImageUrl = newImageUrl;
+                announcement.IsImportant = newIsImportant;
+
+                Context.Announcements.Update(announcement);
+                await Context.SaveChangesAsync();
+                successMessage = "Duyuru güncellendi!";
+            }
+        }
+
         showAddModal = false;
+        editingAnnouncementId = Guid.Empty;
         LoadAnnouncements();
     }
 

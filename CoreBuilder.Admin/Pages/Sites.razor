@@ -2,115 +2,214 @@
 @using CoreBuilder.Models
 @using CoreBuilder.Services
 @using CoreBuilder.Data
+@using Microsoft.JSInterop
 @inject SiteService SiteService
 @inject ThemeService ThemeService
-@inject SiteGenerationService SiteGenerationService
+@inject NavigationManager Navigation
+@inject AppDbContext Context
+@inject IJSRuntime JSRuntime
 
-<div class="container-fluid">
-    <h3 class="fw-bold text-dark mb-4">Site Yönetimi</h3>
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold text-dark mb-0"><i class="bi bi-globe me-2"></i>Site Yonetimi</h3>
+        <button class="btn btn-primary shadow-sm" @onclick="CreateNewSite">
+            <i class="bi bi-plus-lg me-2"></i>Yeni Site Olustur
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
 
     <div class="card shadow-sm border-0">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <span class="fw-bold">Mevcut Siteler</span>
-            <button class="btn btn-sm btn-primary" @onclick="AddNewSite">
-                <span class="oi oi-plus me-2"></span> Yeni Site Ekle
-            </button>
+        <div class="card-header bg-white py-3">
+            <span class="fw-bold text-secondary">Mevcut Siteler (@sites.Count)</span>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             @if (sites.Any())
             {
-                <table class="table table-striped table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th>Adı</th>
-                            <th>Domain</th>
-                            <th>Kategori</th>
-                            <th>Tema</th>
-                            <th>İşlemler</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var site in sites)
-                        {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
                             <tr>
-                                <td>@site.Name</td>
-                                <td>@site.Domain</td>
-                                <td>@site.Category</td>
-                                <td>@themes.FirstOrDefault(t => t.Id == site.ThemeId)?.Name</td>
-                                <td>
-                                    <button class="btn btn-sm btn-info text-white">Düzenle</button>
-                                    <button class="btn btn-sm btn-danger" @onclick="() => DeleteSite(site.Id)">Sil</button>
-                                </td>
+                                <th class="ps-4">Site</th>
+                                <th>Domain</th>
+                                <th>Kategori</th>
+                                <th>Header Rengi</th>
+                                <th>Sayfa</th>
+                                <th class="text-end pe-4">Islemler</th>
                             </tr>
-                        }
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @foreach (var site in sites)
+                            {
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center gap-3">
+                                            @if (!string.IsNullOrEmpty(site.LogoUrl))
+                                            {
+                                                <img src="@site.LogoUrl" alt="@site.Name" style="width: 40px; height: 40px; object-fit: contain; border-radius: 6px; background: #f8f9fa; padding: 4px;" />
+                                            }
+                                            else
+                                            {
+                                                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+                                                    <i class="bi bi-building text-white"></i>
+                                                </div>
+                                            }
+                                            <strong>@site.Name</strong>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge bg-light text-dark border">@site.Domain</span></td>
+                                    <td>@site.Category</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div style="width:24px;height:24px;border-radius:4px;border:1px solid #ddd;background-color:@site.HeaderColor"></div>
+                                            <small class="text-muted">@site.HeaderColor</small>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge bg-info">@GetPageCount(site.Id)</span></td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-secondary me-1" @onclick="() => EditSite(site)" title="Duzenle">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <a href="/pages/@site.Id" class="btn btn-sm btn-outline-primary me-1" title="Sayfalar">
+                                            <i class="bi bi-file-earmark-text"></i>
+                                        </a>
+                                        <a href="/demo/@site.Id" class="btn btn-sm btn-outline-success me-1" target="_blank" title="Onizle">
+                                            <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSite(site.Id)" title="Sil">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
             else
             {
-                <div class="alert alert-info">Henüz tanımlı site bulunmamaktadır.</div>
+                <div class="p-5 text-center text-muted">
+                    <i class="bi bi-globe" style="font-size: 3rem;"></i>
+                    <p class="mt-3">Henuz site olusturulmamis.</p>
+                    <button class="btn btn-primary mt-3" @onclick="CreateNewSite">
+                        <i class="bi bi-plus-lg me-2"></i>Ilk Sitenizi Olusturun
+                    </button>
+                </div>
             }
         </div>
     </div>
 </div>
 
-<div class="@(isFormVisible ? "d-block" : "d-none") modal-overlay">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Yeni Site Oluştur</h5>
-                <button type="button" class="btn-close" @onclick="CloseForm"></button>
-            </div>
-            <div class="modal-body">
-                <EditForm Model="@NewTenant" OnValidSubmit="SaveSite">
-                    <DataAnnotationsValidator />
-                    <ValidationSummary />
-
-                    <div class="mb-3">
-                        <label for="siteName" class="form-label">Site Adı</label>
-                        <InputText id="siteName" class="form-control" @bind-Value="NewTenant.Name" />
-                        <ValidationMessage For="@(() => NewTenant.Name)" />
+@if (showEditModal)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Site Duzenle</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Site Adi *</label>
+                                <input type="text" class="form-control" @bind="editName" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Domain *</label>
+                                <input type="text" class="form-control" @bind="editDomain" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Kategori</label>
+                                <select class="form-select" @bind="editCategory">
+                                    <option value="Education">Egitim</option>
+                                    <option value="ExamPrep">Sinav Hazirlik</option>
+                                    <option value="Government">Kamu</option>
+                                    <option value="Marketing">Pazarlama</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Tema</label>
+                                <select class="form-select" @bind="editThemeId">
+                                    @foreach (var theme in themes)
+                                    {
+                                        <option value="@theme.Id">@theme.Name</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Header Arka Plan Rengi</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="editHeaderColor" style="width:60px;height:38px;" />
+                                    <input type="text" class="form-control" @bind="editHeaderColor" placeholder="#ffffff" />
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Header Yazi Rengi</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="editHeaderTextColor" style="width:60px;height:38px;" />
+                                    <input type="text" class="form-control" @bind="editHeaderTextColor" placeholder="#333333" />
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Header Onizleme</label>
+                                <div class="border rounded p-3" style="background-color:@editHeaderColor;">
+                                    <span style="color:@editHeaderTextColor;font-weight:bold;">@editName</span>
+                                    <span style="color:@editHeaderTextColor;margin-left:20px;">Ana Sayfa</span>
+                                    <span style="color:@editHeaderTextColor;margin-left:10px;">Hakkimizda</span>
+                                    <span style="color:@editHeaderTextColor;margin-left:10px;">Iletisim</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Logo</label>
+                                @if (!string.IsNullOrEmpty(editLogoUrl))
+                                {
+                                    <div class="text-center mb-2">
+                                        <img src="@editLogoUrl" style="max-height:60px;" />
+                                        <br /><button class="btn btn-sm btn-outline-danger mt-1" @onclick="() => editLogoUrl = null">Kaldir</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <InputFile OnChange="OnLogoSelected" accept="image/*" class="form-control" />
+                                }
+                            </div>
+                        </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="domain" class="form-label">Domain (URL)</label>
-                        <InputText id="domain" class="form-control" @bind-Value="NewTenant.Domain" />
-                        <ValidationMessage For="@(() => NewTenant.Domain)" />
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="category" class="form-label">Kategori</label>
-                        <InputSelect id="category" class="form-select" @bind-Value="NewTenant.Category">
-                            <option value="Education">Eğitim</option>
-                            <option value="Marketing">Pazarlama</option>
-                        </InputSelect>
-                        <ValidationMessage For="@(() => NewTenant.Category)" />
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="theme" class="form-label">Tema Seçimi</label>
-                        <InputSelect id="theme" class="form-select" @bind-Value="NewTenant.ThemeId">
-                            <option value="@Guid.Empty">-- Tema Seçiniz --</option>
-                            @foreach (var theme in themes)
-                            {
-                                <option value="@theme.Id">@theme.Name</option>
-                            }
-                        </InputSelect>
-                        <ValidationMessage For="@(() => NewTenant.ThemeId)" />
-                    </div>
-
-                    <button type="submit" class="btn btn-primary mt-3">Kaydet ve Oluştur</button>
-                </EditForm>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">Iptal</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveSite" disabled="@(string.IsNullOrEmpty(editName) || string.IsNullOrEmpty(editDomain))">
+                        <i class="bi bi-check-lg me-1"></i>Kaydet
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
 
 @code {
-    private List<Tenant> sites { get; set; } = new List<Tenant>();
-    private List<Theme> themes { get; set; } = new List<Theme>();
-    private Tenant NewTenant { get; set; } = new Tenant();
-    private bool isFormVisible = false;
+    private List<Tenant> sites = new();
+    private List<Theme> themes = new();
+    private string successMessage = "";
+    
+    // Edit Modal
+    private bool showEditModal;
+    private Guid editSiteId;
+    private string editName = "", editDomain = "", editCategory = "Education";
+    private Guid editThemeId;
+    private string editHeaderColor = "#ffffff", editHeaderTextColor = "#333333";
+    private string? editLogoUrl;
+    private long maxFileSize = 2 * 1024 * 1024;
 
     protected override void OnInitialized()
     {
@@ -121,56 +220,75 @@
     {
         sites = SiteService.GetAllSites();
         themes = ThemeService.GetAllThemes();
-        
-        // Temaların boş olmamasını sağlamak için varsayılan tema ekleme
-        if (!themes.Any())
-        {
-            var defaultTheme = new Theme
-            {
-                Id = Guid.NewGuid(),
-                Name = "Default",
-                PrimaryColor = "#007bff",
-                SecondaryColor = "#6c757d",
-                FontFamily = "Arial"
-            };
-            // Eğer temayı burada DB'ye kaydetme servisi varsa çağırın, yoksa sadece listeye ekleyin.
-            // Bu örnekte, SiteService'e SaveTheme metodu eklenmiş olmalı.
-            // Şimdilik sadece listeye ekleyelim:
-            themes.Add(defaultTheme);
-        }
     }
 
-    private void AddNewSite()
+    private void CreateNewSite()
     {
-        NewTenant = new Tenant { Name = string.Empty, Domain = string.Empty, Category = "Education" };
-        isFormVisible = true;
+        Navigation.NavigateTo("/sites/create");
     }
 
-    private void CloseForm()
+    private int GetPageCount(Guid tenantId)
     {
-        isFormVisible = false;
+        return Context.Pages.Count(p => p.TenantId == tenantId);
+    }
+
+    private void EditSite(Tenant site)
+    {
+        editSiteId = site.Id;
+        editName = site.Name;
+        editDomain = site.Domain;
+        editCategory = site.Category;
+        editThemeId = site.ThemeId;
+        editHeaderColor = site.HeaderColor ?? "#ffffff";
+        editHeaderTextColor = site.HeaderTextColor ?? "#333333";
+        editLogoUrl = site.LogoUrl;
+        showEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+    }
+
+    private async Task OnLogoSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > maxFileSize) return;
+        using var stream = file.OpenReadStream(maxFileSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        editLogoUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
     }
 
     private async Task SaveSite()
     {
-        if (NewTenant.ThemeId == Guid.Empty)
+        var site = await Context.Tenants.FindAsync(editSiteId);
+        if (site != null)
         {
-            // Kullanıcı tema seçmediyse, varsayılan temayı atayalım (listeden ilkini)
-            NewTenant.ThemeId = themes.First().Id;
+            site.Name = editName;
+            site.Domain = editDomain;
+            site.Category = editCategory;
+            site.ThemeId = editThemeId;
+            site.HeaderColor = editHeaderColor;
+            site.HeaderTextColor = editHeaderTextColor;
+            site.LogoUrl = editLogoUrl;
+            
+            Context.Tenants.Update(site);
+            await Context.SaveChangesAsync();
+            
+            successMessage = "Site guncellendi!";
+            LoadData();
+            CloseEditModal();
         }
-
-        SiteService.CreateSite(NewTenant);
-        
-        // Varsayılan sayfaları ve modülleri oluştur
-        await SiteGenerationService.GenerateDefaultContent(NewTenant);
-
-        CloseForm();
-        LoadData();
     }
 
     private async Task DeleteSite(Guid id)
     {
-        await SiteService.DeleteSiteAsync(id);
-        LoadData();
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Bu siteyi silmek istediginizden emin misiniz?"))
+        {
+            await SiteService.DeleteSiteAsync(id);
+            successMessage = "Site silindi!";
+            LoadData();
+        }
     }
 }

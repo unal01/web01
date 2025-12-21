@@ -25,6 +25,7 @@ namespace CoreBuilder.Data
         
         // System Settings
         public DbSet<SystemSettings> SystemSettings { get; set; }
+        public DbSet<FontSettings> FontSettings { get; set; }
         
         // Content Management
         public DbSet<Slider> Sliders { get; set; }
@@ -32,6 +33,11 @@ namespace CoreBuilder.Data
         public DbSet<NewsArticle> NewsArticles { get; set; }
         public DbSet<GalleryAlbum> GalleryAlbums { get; set; }
         public DbSet<GalleryImage> GalleryImages { get; set; }
+        public DbSet<Teacher> Teachers { get; set; }
+        public DbSet<PageContent> PageContents { get; set; }
+        
+        // Contact Info
+        public DbSet<ContactInfo> ContactInfos { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -41,6 +47,7 @@ namespace CoreBuilder.Data
             modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
             modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique();
             modelBuilder.Entity<NewsArticle>().HasIndex(n => n.Slug);
+            modelBuilder.Entity<ContactInfo>().HasIndex(c => c.TenantId).IsUnique();
 
             // Query Filters - Multi-Tenant Isolation
             modelBuilder.Entity<Page>().HasQueryFilter(p => !CurrentTenantId.HasValue || p.TenantId == CurrentTenantId);
@@ -55,6 +62,8 @@ namespace CoreBuilder.Data
             modelBuilder.Entity<Announcement>().HasQueryFilter(a => !CurrentTenantId.HasValue || a.TenantId == CurrentTenantId);
             modelBuilder.Entity<NewsArticle>().HasQueryFilter(n => !CurrentTenantId.HasValue || n.TenantId == CurrentTenantId);
             modelBuilder.Entity<GalleryAlbum>().HasQueryFilter(g => !CurrentTenantId.HasValue || g.TenantId == CurrentTenantId);
+            modelBuilder.Entity<Teacher>().HasQueryFilter(t => !CurrentTenantId.HasValue || t.TenantId == CurrentTenantId);
+            modelBuilder.Entity<ContactInfo>().HasQueryFilter(c => !CurrentTenantId.HasValue || c.TenantId == CurrentTenantId);
         }
     }
 }

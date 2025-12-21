@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    Workaround for dotnet CLI ambiguity in repo root.
+    This repo contains legacy `w3.vbproj` (WebForms) which requires VS WebApplication targets.
+
+    We keep that project in the repo, but we want `dotnet build/run/clean` to default to `web01.sln`.
+  -->
+
+  <!-- Make the root invocation pick the solution explicitly -->
+  <Target Name="_CliHelp" BeforeTargets="Build;Clean;Run" Condition="'$(MSBuildProjectExtension)'=='.vbproj' and '$(MSBuildProjectName)'=='w3'">
+    <Message Importance="high" Text="This repo contains legacy `w3.vbproj` which cannot be built with dotnet CLI alone. Use: dotnet build .\web01.sln / dotnet run --project .\CoreBuilder.Admin\CoreBuilder.Admin.csproj" />
+  </Target>
+</Project>

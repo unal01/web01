@@ -1,9 +1,11 @@
 @page "/sliders"
+@page "/sliders/{TenantIdParam:guid?}"
 @using CoreBuilder.Models
 @using CoreBuilder.Services
 @using CoreBuilder.Data
 @inject ContentService ContentService
 @inject AppDbContext Context
+@inject NavigationManager Navigation
 
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -81,6 +83,9 @@
                                             }
                                         </td>
                                         <td class="text-end pe-4">
+                                            <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => OpenEditModal(slide)">
+                                                <span class="oi oi-pencil"></span>
+                                            </button>
                                             <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSlider(slide.Id)">
                                                 <span class="oi oi-trash"></span>
                                             </button>
@@ -109,7 +114,7 @@
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" style="font-size: 1.1rem;">Yeni Slide Ekle</h5>
+                    <h5 class="modal-title" style="font-size: 1.1rem;">@(editingSliderId == Guid.Empty ? "Yeni Slide Ekle" : "Slide Düzenle")</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
                 </div>
                 <div class="modal-body p-4">
@@ -148,7 +153,7 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CloseModal">İptal</button>
-                    <button class="btn btn-primary" @onclick="SaveSlider">Kaydet</button>
+                    <button class="btn btn-primary" @onclick="SaveSlider">@(editingSliderId == Guid.Empty ? "Kaydet" : "Güncelle")</button>
                 </div>
             </div>
         </div>
@@ -156,11 +161,14 @@
 }
 
 @code {
+    [Parameter] public Guid? TenantIdParam { get; set; }
+    
     private List<Tenant> Tenants = new();
     private List<Slider> sliders = new();
     private Guid selectedTenantId;
     private bool showAddModal = false;
     private string successMessage = "";
+    private Guid editingSliderId = Guid.Empty;
 
     private string newTitle = "";
     private string newDescription = "";
@@ -173,22 +181,49 @@
     private Guid SelectedTenantId
     {
         get => selectedTenantId;
-        set { selectedTenantId = value; LoadSliders(); }
+        set 
+        { 
+            selectedTenantId = value; 
+            LoadSliders();
+            if (value != Guid.Empty)
+            {
+                Navigation.NavigateTo($"/sliders/{value}", false);
+            }
+        }
     }
 
-    protected override void OnInitialized() => Tenants = Context.Tenants.ToList();
+    protected override void OnInitialized()
+    {
+        Tenants = Context.Tenants.ToList();
+        
+        if (TenantIdParam.HasValue && TenantIdParam.Value != Guid.Empty)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadSliders();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (TenantIdParam.HasValue && TenantIdParam.Value != selectedTenantId)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadSliders();
+        }
+    }
 
     private async void LoadSliders()
     {
         if (SelectedTenantId != Guid.Empty)
         {
-            sliders = await ContentService.GetSlidersAsync(SelectedTenantId);
+            sliders = await ContentService.GetAllSlidersAsync(SelectedTenantId);
             StateHasChanged();
         }
     }
 
     private void OpenAddModal()
     {
+        editingSliderId = Guid.Empty;
         newTitle = "";
         newDescription = "";
         newImageUrl = "";
@@ -199,28 +234,69 @@
         showAddModal = true;
     }
 
-    private void CloseModal() => showAddModal = false;
+    private void OpenEditModal(Slider slider)
+    {
+        editingSliderId = slider.Id;
+        newTitle = slider.Title;
+        newDescription = slider.Description ?? "";
+        newImageUrl = slider.ImageUrl;
+        newButtonText = slider.ButtonText ?? "";
+        newButtonLink = slider.ButtonLink ?? "";
+        newOrder = slider.Order;
+        newIsActive = slider.IsActive;
+        showAddModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showAddModal = false;
+        editingSliderId = Guid.Empty;
+    }
 
     private async Task SaveSlider()
     {
         if (string.IsNullOrWhiteSpace(newTitle) || string.IsNullOrWhiteSpace(newImageUrl))
             return;
 
-        var slider = new Slider
+        if (editingSliderId == Guid.Empty)
         {
-            TenantId = SelectedTenantId,
-            Title = newTitle,
-            Description = newDescription,
-            ImageUrl = newImageUrl,
-            ButtonText = newButtonText,
-            ButtonLink = newButtonLink,
-            Order = newOrder,
-            IsActive = newIsActive
-        };
+            // Yeni slider ekle
+            var slider = new Slider
+            {
+                TenantId = SelectedTenantId,
+                Title = newTitle,
+                Description = newDescription,
+                ImageUrl = newImageUrl,
+                ButtonText = newButtonText,
+                ButtonLink = newButtonLink,
+                Order = newOrder,
+                IsActive = newIsActive
+            };
 
-        await ContentService.CreateSliderAsync(slider);
-        successMessage = "Slide başarıyla eklendi!";
+            await ContentService.CreateSliderAsync(slider);
+            successMessage = "Slide başarıyla eklendi!";
+        }
+        else
+        {
+            // Mevcut slider'ı güncelle
+            var slider = await ContentService.GetSliderByIdAsync(editingSliderId);
+            if (slider != null)
+            {
+                slider.Title = newTitle;
+                slider.Description = newDescription;
+                slider.ImageUrl = newImageUrl;
+                slider.ButtonText = newButtonText;
+                slider.ButtonLink = newButtonLink;
+                slider.Order = newOrder;
+                slider.IsActive = newIsActive;
+
+                await ContentService.UpdateSliderAsync(slider);
+                successMessage = "Slide başarıyla güncellendi!";
+            }
+        }
+
         showAddModal = false;
+        editingSliderId = Guid.Empty;
         LoadSliders();
     }
 

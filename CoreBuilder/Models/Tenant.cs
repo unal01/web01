@@ -8,13 +8,33 @@ namespace CoreBuilder.Models
         public Guid Id { get; set; }
 
         [Required]
-        public string Name { get; set; } = string.Empty; // "SiteName" yerine "Name"
+        public string Name { get; set; } = string.Empty;
 
         [Required]
         public string Domain { get; set; } = string.Empty;
 
-        public string Category { get; set; } = "Education"; // "CategoryType" yerine "Category"
+        public string Category { get; set; } = "Education";
 
-        public Guid ThemeId { get; set; } // Bu özellik eksikti, eklendi.
+        public Guid ThemeId { get; set; }
+
+        /// <summary>
+        /// Site logosu URL veya Base64
+        /// </summary>
+        public string? LogoUrl { get; set; }
+
+        /// <summary>
+        /// Favicon URL veya Base64
+        /// </summary>
+        public string? FaviconUrl { get; set; }
+
+        /// <summary>
+        /// Header arka plan rengi
+        /// </summary>
+        public string HeaderColor { get; set; } = "#ffffff";
+
+        /// <summary>
+        /// Header yazi rengi
+        /// </summary>
+        public string HeaderTextColor { get; set; } = "#333333";
     }
 }

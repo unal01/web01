@@ -1,4 +1,5 @@
 @page "/pages"
+@page "/pages/{TenantIdParam:guid?}"
 @using CoreBuilder.Models
 @using CoreBuilder.Data
 @inject AppDbContext Context
@@ -6,20 +7,20 @@
 
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold text-dark mb-0" style="font-size: 1.75rem;">Sayfa İçeriği Yönetimi</h3>
+        <h3 class="fw-bold text-dark mb-0">Sayfa Icerigi Yonetimi</h3>
         @if (SelectedTenantId != Guid.Empty)
         {
             <button class="btn btn-primary shadow-sm" @onclick="OpenAddModal">
-                <span class="oi oi-plus me-2"></span>Yeni Sayfa Ekle
+                <i class="bi bi-plus-lg me-2"></i>Yeni Sayfa Ekle
             </button>
         }
     </div>
 
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-body p-4">
-            <label class="form-label fw-bold mb-2" style="font-size: 0.95rem;">İşlem Yapılacak Siteyi Seçin:</label>
-            <select class="form-select" @bind="SelectedTenantId" @bind:event="onchange" style="font-size: 0.95rem;">
-                <option value="@Guid.Empty">-- Bir Site Seçiniz --</option>
+            <label class="form-label fw-bold mb-2">Islem Yapilacak Siteyi Secin:</label>
+            <select class="form-select" @bind="SelectedTenantId" @bind:event="onchange">
+                <option value="@Guid.Empty">-- Bir Site Seciniz --</option>
                 @foreach (var tenant in Tenants)
                 {
                     <option value="@tenant.Id">@tenant.Name (@tenant.Domain)</option>
@@ -28,11 +29,20 @@
         </div>
     </div>
 
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
     @if (SelectedTenantId != Guid.Empty)
     {
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-white py-3">
-                <span class="fw-bold text-secondary" style="font-size: 1rem;">Sitedeki Mevcut Sayfalar</span>
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <span class="fw-bold text-secondary">Sitedeki Mevcut Sayfalar (@SitePages.Count)</span>
+                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Sayfalari siralamak icin ok tuslarini kullanin</small>
             </div>
             <div class="card-body p-0">
                 @if (SitePages.Any())
@@ -41,41 +51,61 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead class="bg-light">
                                 <tr>
-                                    <th class="ps-4" style="font-size: 0.9rem; font-weight: 600;">Sayfa Başlığı</th>
-                                    <th style="font-size: 0.9rem; font-weight: 600;">URL Yolu (Slug)</th>
-                                    <th style="font-size: 0.9rem; font-weight: 600;">Durum</th>
-                                    <th class="text-end pe-4" style="font-size: 0.9rem; font-weight: 600;">İşlemler</th>
+                                    <th style="width:80px;" class="text-center">Sira</th>
+                                    <th class="ps-2">Sayfa Basligi</th>
+                                    <th>URL Yolu</th>
+                                    <th>Tur</th>
+                                    <th>Durum</th>
+                                    <th class="text-end pe-4">Islemler</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var p in SitePages)
+                                @foreach (var item in GetOrderedPages())
                                 {
-                                    <tr>
-                                        <td class="ps-4" style="font-size: 0.95rem;">
-                                            <span class="fw-bold">@p.Title</span>
+                                    <tr class="@GetRowClass(item.Page)">
+                                        <td class="text-center">
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-secondary" @onclick="() => MoveUp(item.Page)" disabled="@(!item.CanMoveUp)" title="Yukari">
+                                                    <i class="bi bi-chevron-up"></i>
+                                                </button>
+                                                <button class="btn btn-outline-secondary" @onclick="() => MoveDown(item.Page)" disabled="@(!item.CanMoveDown)" title="Asagi">
+                                                    <i class="bi bi-chevron-down"></i>
+                                                </button>
+                                            </div>
                                         </td>
-                                        <td style="font-size: 0.9rem;">
-                                            <span class="badge bg-light text-dark border">/@p.Slug</span>
-                                        </td>
-                                        <td style="font-size: 0.85rem;">
-                                            @if (p.IsPublished)
+                                        <td class="ps-2">
+                                            @if (item.IsChild)
                                             {
-                                                <span class="badge bg-success-subtle text-success">Yayında</span>
+                                                <span class="text-muted me-2">--</span>
+                                            }
+                                            <span class="badge @(item.IsChild ? "bg-light text-secondary" : "bg-secondary") me-2">@item.OrderLabel</span>
+                                            <span class="@(item.IsChild ? "" : "fw-bold")">@item.Page.Title</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-light text-dark border">/@item.Page.Slug</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">@item.Page.PageType.GetDisplayName()</span>
+                                        </td>
+                                        <td>
+                                            @if (item.Page.IsPublished)
+                                            {
+                                                <span class="badge bg-success">Yayinda</span>
                                             }
                                             else
                                             {
-                                                <span class="badge bg-warning-subtle text-warning">Taslak</span>
+                                                <span class="badge bg-warning">Taslak</span>
                                             }
                                         </td>
                                         <td class="text-end pe-4">
-                                            <a href="/preview/@SelectedTenantId/@p.Slug" target="_blank" class="btn btn-sm btn-outline-success me-2" style="font-size: 0.85rem;">
-                                                <span class="oi oi-external-link"></span> Önizle
+                                            <a href="/demo/@SelectedTenantId/@item.Page.Slug" target="_blank" class="btn btn-sm btn-outline-success me-1" title="Onizle">
+                                                <i class="bi bi-eye"></i>
                                             </a>
-                                            <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => EditPage(p.Id)" style="font-size: 0.85rem;">
-                                                <span class="oi oi-pencil"></span> Düzenle
+                                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditPage(item.Page.Id)" title="Duzenle">
+                                                <i class="bi bi-pencil"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeletePage(p.Id)" style="font-size: 0.85rem;">
-                                                <span class="oi oi-trash"></span> Sil
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeletePage(item.Page.Id)" title="Sil">
+                                                <i class="bi bi-trash"></i>
                                             </button>
                                         </td>
                                     </tr>
@@ -87,8 +117,8 @@
                 else
                 {
                     <div class="p-5 text-center text-muted">
-                        <span class="oi oi-info mb-2" style="font-size: 2rem;"></span>
-                        <p style="font-size: 0.95rem;">Bu siteye henüz bir sayfa eklenmemiş.</p>
+                        <i class="bi bi-file-earmark-text" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Bu siteye henuz bir sayfa eklenmemis.</p>
                     </div>
                 }
             </div>
@@ -98,26 +128,46 @@
 
 @if (showAddModal)
 {
-    <div class="modal d-block shadow" style="background: rgba(0,0,0,0.5); z-index: 1050;">
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5);">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold" style="font-size: 1.1rem;">Yeni Sayfa Oluştur</h5>
+                    <h5 class="modal-title fw-bold">Yeni Sayfa Olustur</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="CloseAddModal"></button>
                 </div>
                 <div class="modal-body p-4">
                     <div class="mb-3">
-                        <label class="form-label fw-bold" style="font-size: 0.95rem;">Sayfa Başlığı</label>
-                        <input class="form-control" @bind="pageTitle" placeholder="Örn: İletişim" style="font-size: 0.95rem;" />
+                        <label class="form-label fw-bold">Sayfa Basligi</label>
+                        <input class="form-control" @bind="pageTitle" placeholder="Orn: Iletisim" />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold" style="font-size: 0.95rem;">URL Slug</label>
-                        <input class="form-control" @bind="pageSlug" placeholder="iletisim" style="font-size: 0.95rem;" />
+                        <label class="form-label fw-bold">URL Slug</label>
+                        <input class="form-control" @bind="pageSlug" placeholder="iletisim" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sayfa Turu</label>
+                        <select class="form-select" @bind="selectedPageType">
+                            @foreach (PageType type in Enum.GetValues(typeof(PageType)))
+                            {
+                                <option value="@type">@type.GetDisplayName()</option>
+                            }
+                        </select>
+                        <small class="text-muted">@selectedPageType.GetDescription()</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ust Sayfa (Opsiyonel)</label>
+                        <select class="form-select" @bind="selectedParentId">
+                            <option value="@Guid.Empty">-- Yok (Ana Menu) --</option>
+                            @foreach (var p in SitePages.Where(x => x.ParentPageId == null))
+                            {
+                                <option value="@p.Id">@p.Title</option>
+                            }
+                        </select>
                     </div>
                 </div>
                 <div class="modal-footer bg-light border-0">
-                    <button class="btn btn-secondary" @onclick="CloseAddModal" style="font-size: 0.9rem;">Vazgeç</button>
-                    <button class="btn btn-primary px-4" @onclick="SaveNewPage" style="font-size: 0.9rem;">Sayfayı Oluştur</button>
+                    <button class="btn btn-secondary" @onclick="CloseAddModal">Vazgec</button>
+                    <button class="btn btn-primary px-4" @onclick="SaveNewPage">Sayfayi Olustur</button>
                 </div>
             </div>
         </div>
@@ -125,21 +175,104 @@
 }
 
 @code {
+    [Parameter] public Guid? TenantIdParam { get; set; }
+    
     private List<Tenant> Tenants = new();
     private List<Page> SitePages = new();
     private Guid selectedTenantId;
     private bool showAddModal = false;
+    private string successMessage = "";
+    private Guid highlightedPageId = Guid.Empty;
     
     private string pageTitle = string.Empty;
     private string pageSlug = string.Empty;
+    private PageType selectedPageType = PageType.Standard;
+    private Guid selectedParentId = Guid.Empty;
 
     private Guid SelectedTenantId
     {
         get => selectedTenantId;
-        set { selectedTenantId = value; LoadPages(); }
+        set 
+        { 
+            selectedTenantId = value; 
+            LoadPages();
+            if (value != Guid.Empty)
+            {
+                Navigation.NavigateTo($"/pages/{value}", false);
+            }
+        }
     }
 
-    protected override void OnInitialized() => Tenants = Context.Tenants.ToList();
+    // Sayfa listesi icin yardimci sinif
+    private class PageListItem
+    {
+        public Page Page { get; set; } = null!;
+        public string OrderLabel { get; set; } = "";
+        public bool IsChild { get; set; }
+        public bool CanMoveUp { get; set; }
+        public bool CanMoveDown { get; set; }
+    }
+
+    private List<PageListItem> GetOrderedPages()
+    {
+        var result = new List<PageListItem>();
+        var mainPages = SitePages.Where(x => x.ParentPageId == null).OrderBy(x => x.MenuOrder).ToList();
+        
+        for (int i = 0; i < mainPages.Count; i++)
+        {
+            var mainPage = mainPages[i];
+            result.Add(new PageListItem
+            {
+                Page = mainPage,
+                OrderLabel = (i + 1).ToString(),
+                IsChild = false,
+                CanMoveUp = i > 0,
+                CanMoveDown = i < mainPages.Count - 1
+            });
+            
+            var children = SitePages.Where(x => x.ParentPageId == mainPage.Id).OrderBy(x => x.MenuOrder).ToList();
+            for (int j = 0; j < children.Count; j++)
+            {
+                result.Add(new PageListItem
+                {
+                    Page = children[j],
+                    OrderLabel = $"{i + 1}.{j + 1}",
+                    IsChild = true,
+                    CanMoveUp = j > 0,
+                    CanMoveDown = j < children.Count - 1
+                });
+            }
+        }
+        
+        return result;
+    }
+
+    private string GetRowClass(Page page)
+    {
+        if (page.Id == highlightedPageId) return "table-success";
+        if (page.ParentPageId != null) return "table-light";
+        return "";
+    }
+
+    protected override void OnInitialized()
+    {
+        Tenants = Context.Tenants.ToList();
+        
+        if (TenantIdParam.HasValue && TenantIdParam.Value != Guid.Empty)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadPages();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (TenantIdParam.HasValue && TenantIdParam.Value != selectedTenantId)
+        {
+            selectedTenantId = TenantIdParam.Value;
+            LoadPages();
+        }
+    }
 
     private void LoadPages()
     {
@@ -160,10 +293,81 @@
         }
     }
 
+    private async Task MoveUp(Page page)
+    {
+        List<Page> siblings;
+        if (page.ParentPageId == null)
+        {
+            siblings = SitePages.Where(x => x.ParentPageId == null).OrderBy(x => x.MenuOrder).ToList();
+        }
+        else
+        {
+            siblings = SitePages.Where(x => x.ParentPageId == page.ParentPageId).OrderBy(x => x.MenuOrder).ToList();
+        }
+
+        var index = siblings.IndexOf(page);
+        if (index > 0)
+        {
+            var prevPage = siblings[index - 1];
+            var tempOrder = page.MenuOrder;
+            page.MenuOrder = prevPage.MenuOrder;
+            prevPage.MenuOrder = tempOrder;
+            
+            if (page.MenuOrder == prevPage.MenuOrder)
+            {
+                page.MenuOrder = index - 1;
+                prevPage.MenuOrder = index;
+            }
+            
+            Context.Pages.Update(page);
+            Context.Pages.Update(prevPage);
+            await Context.SaveChangesAsync();
+            LoadPages();
+            highlightedPageId = page.Id;
+            successMessage = $"'{page.Title}' yukari tasindi";
+        }
+    }
+
+    private async Task MoveDown(Page page)
+    {
+        List<Page> siblings;
+        if (page.ParentPageId == null)
+        {
+            siblings = SitePages.Where(x => x.ParentPageId == null).OrderBy(x => x.MenuOrder).ToList();
+        }
+        else
+        {
+            siblings = SitePages.Where(x => x.ParentPageId == page.ParentPageId).OrderBy(x => x.MenuOrder).ToList();
+        }
+
+        var index = siblings.IndexOf(page);
+        if (index < siblings.Count - 1)
+        {
+            var nextPage = siblings[index + 1];
+            var tempOrder = page.MenuOrder;
+            page.MenuOrder = nextPage.MenuOrder;
+            nextPage.MenuOrder = tempOrder;
+            
+            if (page.MenuOrder == nextPage.MenuOrder)
+            {
+                page.MenuOrder = index + 1;
+                nextPage.MenuOrder = index;
+            }
+            
+            Context.Pages.Update(page);
+            Context.Pages.Update(nextPage);
+            await Context.SaveChangesAsync();
+            LoadPages();
+            highlightedPageId = page.Id;
+            successMessage = $"'{page.Title}' asagi tasindi";
+        }
+    }
+
     private void OpenAddModal()
     {
         pageTitle = string.Empty;
         pageSlug = string.Empty;
+        selectedParentId = Guid.Empty;
         showAddModal = true;
     }
 
@@ -176,12 +380,25 @@
         if (string.IsNullOrWhiteSpace(pageSlug))
             pageSlug = pageTitle.ToLower().Replace(" ", "-");
 
+        int maxOrder = 0;
+        if (selectedParentId == Guid.Empty)
+        {
+            maxOrder = SitePages.Where(x => x.ParentPageId == null).Select(x => x.MenuOrder).DefaultIfEmpty(-1).Max() + 1;
+        }
+        else
+        {
+            maxOrder = SitePages.Where(x => x.ParentPageId == selectedParentId).Select(x => x.MenuOrder).DefaultIfEmpty(-1).Max() + 1;
+        }
+
         var newPage = new Page 
         { 
             TenantId = SelectedTenantId, 
             Title = pageTitle,
             Slug = pageSlug,
-            Content = "<h1>Yeni Sayfa</h1>",
+            PageType = selectedPageType,
+            ParentPageId = selectedParentId == Guid.Empty ? null : selectedParentId,
+            MenuOrder = maxOrder,
+            Content = "<h1>" + pageTitle + "</h1><p>Buraya icerik ekleyin...</p>",
             IsPublished = true 
         };
 
@@ -189,6 +406,7 @@
         await Context.SaveChangesAsync();
         
         showAddModal = false;
-        LoadPages();
+        
+        Navigation.NavigateTo($"/page/{newPage.Id}");
     }
 }

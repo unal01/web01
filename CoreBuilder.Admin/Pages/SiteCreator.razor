@@ -1,0 +1,308 @@
+@page "/sites/create"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject SiteService SiteService
+@inject SiteTemplateService TemplateService
+@inject ThemeService ThemeService
+@inject NavigationManager Navigation
+
+<div class="container-fluid py-4">
+    <div class="mb-4">
+        <button class="btn btn-outline-secondary" @onclick="GoBack">
+            <i class="bi bi-arrow-left me-2"></i>Geri
+        </button>
+    </div>
+
+    <h3 class="fw-bold text-dark mb-4"><i class="bi bi-plus-circle me-2"></i>Yeni Site Olustur</h3>
+
+    @if (step == 1)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Adim 1: Site Sablonu Secin</h5>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted mb-4">Siteniz icin en uygun sablonu secin.</p>
+                
+                <div class="row g-4">
+                    @foreach (var template in templates)
+                    {
+                        <div class="col-md-4">
+                            <div class="card h-100 border @(selectedTemplateId == template.Id ? "border-primary border-3" : "")" 
+                                 @onclick="() => SelectTemplate(template.Id)" style="cursor: pointer;">
+                                <div class="card-body text-center">
+                                    <div class="display-1 text-primary mb-3">
+                                        <i class="bi @GetBootstrapIcon(template.Icon)"></i>
+                                    </div>
+                                    <h5 class="card-title">@template.Name</h5>
+                                    <p class="card-text text-muted small">@template.Description</p>
+                                    <span class="badge bg-info">@template.Pages.Count Sayfa</span>
+                                    @if (selectedTemplateId == template.Id)
+                                    {
+                                        <div class="mt-3"><span class="badge bg-success"><i class="bi bi-check"></i> Secildi</span></div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="mt-4 d-flex justify-content-end">
+                    <button class="btn btn-primary px-5" @onclick="NextStep" disabled="@(string.IsNullOrEmpty(selectedTemplateId))">
+                        Devam Et <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    else if (step == 2)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Adim 2: Site Bilgilerini Girin</h5>
+            </div>
+            <div class="card-body p-4">
+                <EditForm Model="@newTenant" OnValidSubmit="HandleValidSubmit">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold"><i class="bi bi-image me-1"></i>Site Logosu</label>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="border rounded p-2 bg-light text-center" style="width:100px;height:100px;display:flex;align-items:center;justify-content:center;">
+                                        @if (!string.IsNullOrEmpty(logoPreview))
+                                        {
+                                            <img src="@logoPreview" style="max-width:90px;max-height:90px;object-fit:contain;" />
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-building text-muted" style="font-size:2rem;"></i>
+                                        }
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <InputFile OnChange="OnLogoSelected" accept="image/*" class="form-control form-control-sm" />
+                                        @if (!string.IsNullOrEmpty(logoPreview))
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-danger mt-1" @onclick="RemoveLogo">Kaldir</button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Site Adi *</label>
+                                <InputText class="form-control" @bind-Value="newTenant.Name" placeholder="Orn: ABC Egitim Kurumu" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Domain *</label>
+                                <InputText class="form-control" @bind-Value="newTenant.Domain" placeholder="Orn: abc-egitim.com" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Tema</label>
+                                <InputSelect class="form-select" @bind-Value="newTenant.ThemeId">
+                                    @foreach (var theme in themes)
+                                    {
+                                        <option value="@theme.Id">@theme.Name</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Header Arka Plan Rengi</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="newTenant.HeaderColor" style="width:60px;height:38px;" />
+                                    <input type="text" class="form-control" @bind="newTenant.HeaderColor" />
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Header Yazi Rengi</label>
+                                <div class="d-flex gap-2">
+                                    <input type="color" class="form-control form-control-color" @bind="newTenant.HeaderTextColor" style="width:60px;height:38px;" />
+                                    <input type="text" class="form-control" @bind="newTenant.HeaderTextColor" />
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Header Onizleme</label>
+                                <div class="border rounded p-3" style="background-color:@newTenant.HeaderColor;">
+                                    @if (!string.IsNullOrEmpty(logoPreview))
+                                    {
+                                        <img src="@logoPreview" style="height:30px;margin-right:15px;" />
+                                    }
+                                    <span style="color:@newTenant.HeaderTextColor;font-weight:bold;">@(string.IsNullOrEmpty(newTenant.Name) ? "Site Adi" : newTenant.Name)</span>
+                                    <span style="color:@newTenant.HeaderTextColor;margin-left:20px;opacity:0.8;">Ana Sayfa</span>
+                                    <span style="color:@newTenant.HeaderTextColor;margin-left:10px;opacity:0.8;">Hakkimizda</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Hazir Renkler</label>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button type="button" class="btn btn-sm" style="background:#1a237e;color:white;" @onclick="SetLacivert">Lacivert</button>
+                                    <button type="button" class="btn btn-sm" style="background:#2e7d32;color:white;" @onclick="SetYesil">Yesil</button>
+                                    <button type="button" class="btn btn-sm" style="background:#c62828;color:white;" @onclick="SetKirmizi">Kirmizi</button>
+                                    <button type="button" class="btn btn-sm" style="background:#ff6600;color:white;" @onclick="SetTuruncu">Turuncu</button>
+                                    <button type="button" class="btn btn-sm" style="background:#ffffff;color:#333;border:1px solid #ddd;" @onclick="SetBeyaz">Beyaz</button>
+                                    <button type="button" class="btn btn-sm" style="background:#212121;color:white;" @onclick="SetSiyah">Siyah</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <strong><i class="bi bi-list-ul me-1"></i>Olusturulacak Sayfalar:</strong>
+                        <span class="ms-2">@GetPageNames()</span>
+                    </div>
+
+                    <div class="mt-4 d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-secondary" @onclick="PreviousStep">
+                            <i class="bi bi-arrow-left me-2"></i>Geri
+                        </button>
+                        <button type="submit" class="btn btn-success px-5" disabled="@isCreating">
+                            @if (isCreating)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <text>Olusturuluyor</text>
+                            }
+                            else
+                            {
+                                <i class="bi bi-check-lg me-2"></i>
+                                <text>Siteyi Olustur</text>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+    else if (step == 3)
+    {
+        <div class="card shadow-sm border-0 border-success">
+            <div class="card-body text-center p-5">
+                <div class="display-1 text-success mb-4"><i class="bi bi-check-circle"></i></div>
+                <h3 class="text-success mb-3">Siteniz Basariyla Olusturuldu!</h3>
+                @if (!string.IsNullOrEmpty(logoPreview))
+                {
+                    <div class="mb-3"><img src="@logoPreview" style="max-height:60px;" /></div>
+                }
+                <p class="text-muted mb-4"><strong>@newTenant.Name</strong> - @GetPageCount() sayfa olusturuldu.</p>
+                <div class="d-flex gap-3 justify-content-center">
+                    <a href="/pages/@createdTenantId" class="btn btn-primary"><i class="bi bi-file-earmark-text me-2"></i>Sayfalari Gor</a>
+                    <a href="/demo/@createdTenantId" class="btn btn-success" target="_blank"><i class="bi bi-box-arrow-up-right me-2"></i>Onizle</a>
+                    <button class="btn btn-outline-secondary" @onclick="CreateAnother"><i class="bi bi-plus me-2"></i>Yeni Site</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<SiteTemplate> templates = new();
+    private List<Theme> themes = new();
+    private string selectedTemplateId = string.Empty;
+    private SiteTemplate? selectedTemplate;
+    private Tenant newTenant = new() { Name = string.Empty, Domain = string.Empty, HeaderColor = "#1a237e", HeaderTextColor = "#ffffff" };
+    private int step = 1;
+    private bool isCreating = false;
+    private Guid createdTenantId = Guid.Empty;
+    private string? logoPreview;
+    private long maxFileSize = 2 * 1024 * 1024;
+
+    protected override void OnInitialized()
+    {
+        templates = TemplateService.GetAllTemplates();
+        themes = ThemeService.GetAllThemes();
+        if (themes.Any()) newTenant.ThemeId = themes.First().Id;
+    }
+
+    private void SetLacivert() { newTenant.HeaderColor = "#1a237e"; newTenant.HeaderTextColor = "#ffffff"; }
+    private void SetYesil() { newTenant.HeaderColor = "#2e7d32"; newTenant.HeaderTextColor = "#ffffff"; }
+    private void SetKirmizi() { newTenant.HeaderColor = "#c62828"; newTenant.HeaderTextColor = "#ffffff"; }
+    private void SetTuruncu() { newTenant.HeaderColor = "#ff6600"; newTenant.HeaderTextColor = "#ffffff"; }
+    private void SetBeyaz() { newTenant.HeaderColor = "#ffffff"; newTenant.HeaderTextColor = "#333333"; }
+    private void SetSiyah() { newTenant.HeaderColor = "#212121"; newTenant.HeaderTextColor = "#ffffff"; }
+
+    private string GetPageNames()
+    {
+        if (selectedTemplate == null) return "";
+        return string.Join(", ", selectedTemplate.Pages.Select(p => p.Title));
+    }
+
+    private int GetPageCount()
+    {
+        return selectedTemplate?.Pages.Count ?? 0;
+    }
+
+    private async Task OnLogoSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > maxFileSize) return;
+        try
+        {
+            using var stream = file.OpenReadStream(maxFileSize);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            logoPreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            newTenant.LogoUrl = logoPreview;
+        }
+        catch { }
+    }
+
+    private void RemoveLogo() { logoPreview = null; newTenant.LogoUrl = null; }
+
+    private string GetBootstrapIcon(string oiIcon)
+    {
+        return oiIcon switch
+        {
+            "oi-book" => "bi-book",
+            "oi-briefcase" => "bi-briefcase",
+            "oi-cart" => "bi-cart",
+            "oi-rss" => "bi-rss",
+            "oi-image" => "bi-image",
+            _ => "bi-grid"
+        };
+    }
+
+    private void SelectTemplate(string templateId)
+    {
+        selectedTemplateId = templateId;
+        selectedTemplate = templates.FirstOrDefault(t => t.Id == templateId);
+        if (selectedTemplate != null) newTenant.Category = selectedTemplate.Category;
+    }
+
+    private void NextStep() { if (!string.IsNullOrEmpty(selectedTemplateId)) step = 2; }
+    private void PreviousStep() { step = 1; }
+
+    private async Task HandleValidSubmit()
+    {
+        isCreating = true;
+        try
+        {
+            if (newTenant.ThemeId == Guid.Empty && themes.Any()) newTenant.ThemeId = themes.First().Id;
+            SiteService.CreateSite(newTenant);
+            createdTenantId = newTenant.Id;
+            await TemplateService.CreateSiteFromTemplate(newTenant.Id, selectedTemplateId);
+            step = 3;
+        }
+        finally { isCreating = false; }
+    }
+
+    private void CreateAnother()
+    {
+        newTenant = new() { Name = string.Empty, Domain = string.Empty, HeaderColor = "#1a237e", HeaderTextColor = "#ffffff" };
+        if (themes.Any()) newTenant.ThemeId = themes.First().Id;
+        selectedTemplateId = string.Empty;
+        selectedTemplate = null;
+        logoPreview = null;
+        step = 1;
+    }
+
+    private void GoBack() { Navigation.NavigateTo("/sites"); }
+}

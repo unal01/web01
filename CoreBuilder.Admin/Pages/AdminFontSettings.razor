@@ -1,0 +1,272 @@
+@page "/settings/fonts"
+@using CoreBuilder.Models
+@using CoreBuilder.Services
+@inject FontSettingsService FontService
+@inject IJSRuntime JS
+
+<div class="container-fluid py-4">
+    <div class="mb-4">
+        <h3 class="fw-bold text-dark">Font Ayarlari</h3>
+        <p class="text-muted">Admin panelinde kullanilan yazi tiplerini ozellestirin</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            <strong>Tamam!</strong> @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+        </div>
+    }
+
+    @if (fontSettings != null)
+    {
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0 fw-bold">Font Aileleri</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Ana Font</label>
+                                <select class="form-select" @bind="selectedPrimaryFont" @bind:after="UpdatePrimaryFont">
+                                    @foreach (var font in PopularFonts.Fonts.Keys)
+                                    {
+                                        <option value="@font">@font (@PopularFonts.Categories[font])</option>
+                                    }
+                                </select>
+                                <small class="text-muted">Normal metinler icin</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Baslik Font</label>
+                                <select class="form-select" @bind="selectedHeadingFont" @bind:after="UpdateHeadingFont">
+                                    @foreach (var font in PopularFonts.Fonts.Keys)
+                                    {
+                                        <option value="@font">@font</option>
+                                    }
+                                </select>
+                                <small class="text-muted">Basliklar icin</small>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-bold">Monospace Font</label>
+                                <input class="form-control font-monospace" @bind="fontSettings.MonospaceFont" />
+                                <small class="text-muted">Kod bloklari icin</small>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="fontSettings.UseGoogleFonts" id="useGoogleFonts">
+                                    <label class="form-check-label" for="useGoogleFonts">
+                                        Google Fonts kullan (onerilir)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3">
+                        <h5 class="mb-0 fw-bold">Tipografi Ayarlari</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Temel Font Boyutu</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" @bind="fontSettings.BaseFontSize" min="10" max="20" />
+                                    <span class="input-group-text">px</span>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Satir Yuksekligi</label>
+                                <input type="number" class="form-control" @bind="fontSettings.LineHeight" step="0.1" min="1" max="2" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Harf Araligi</label>
+                                <select class="form-select" @bind="fontSettings.LetterSpacing">
+                                    <option value="normal">Normal</option>
+                                    <option value="0.02em">Genis</option>
+                                    <option value="0.05em">Cok Genis</option>
+                                    <option value="-0.02em">Dar</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Baslik Font Agirligi</label>
+                                <select class="form-select" @bind="fontSettings.HeadingFontWeight">
+                                    <option value="400">Normal (400)</option>
+                                    <option value="500">Medium (500)</option>
+                                    <option value="600">Semi-Bold (600)</option>
+                                    <option value="700">Bold (700)</option>
+                                    <option value="800">Extra-Bold (800)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Normal Metin Agirligi</label>
+                                <select class="form-select" @bind="fontSettings.BodyFontWeight">
+                                    <option value="300">Light (300)</option>
+                                    <option value="400">Normal (400)</option>
+                                    <option value="500">Medium (500)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="SaveSettings">
+                        <span class="oi oi-check me-2"></span>Kaydet
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="PreviewChanges">
+                        <span class="oi oi-eye me-2"></span>Onizle
+                    </button>
+                    <button class="btn btn-outline-danger" @onclick="ResetToDefault">
+                        <span class="oi oi-reload me-2"></span>Varsayilana Sifirla
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card shadow-sm border-0 sticky-top" style="top: 20px;">
+                    <div class="card-header bg-primary text-white py-3">
+                        <h5 class="mb-0 fw-bold">Onizleme</h5>
+                    </div>
+                    <div class="card-body" style="@GetPreviewStyle()">
+                        <h1 style="font-size: 2rem;">Baslik 1</h1>
+                        <h2 style="font-size: 1.5rem;">Baslik 2</h2>
+                        <h3 style="font-size: 1.25rem;">Baslik 3</h3>
+                        <p class="mt-3">Bu bir ornek paragraf metnidir. Turkce karakterler: a, e, i, o, u</p>
+                        <p><strong>Kalin metin</strong> ve <em>italik metin</em> ornegi.</p>
+                        <code class="d-block p-2 bg-light rounded">Monospace font ornegi: const hello = "world";</code>
+                        <div class="mt-3">
+                            <small class="text-muted">Font: @selectedPrimaryFont</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mt-4">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="mb-0 fw-bold">Oneriler</h6>
+                    </div>
+                    <div class="card-body">
+                        <ul class="small mb-0">
+                            <li>Turkce karakterler icin <strong>Noto Sans</strong> veya <strong>Rubik</strong> onerilir</li>
+                            <li>Modern gorunum icin <strong>Inter</strong> veya <strong>Poppins</strong></li>
+                            <li>Profesyonel tasarim icin <strong>Roboto</strong> veya <strong>Open Sans</strong></li>
+                            <li>Font boyutu 14-16px arasi okunabilirlik icin ideal</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private CoreBuilder.Models.FontSettings? fontSettings;
+    private string successMessage = "";
+    private string selectedPrimaryFont = "Inter";
+    private string selectedHeadingFont = "Inter";
+
+    protected override async Task OnInitializedAsync()
+    {
+        fontSettings = await FontService.GetOrCreateDefaultAsync();
+        selectedPrimaryFont = ExtractFontName(fontSettings.PrimaryFont);
+        selectedHeadingFont = ExtractFontName(fontSettings.HeadingFont);
+    }
+
+    private void UpdatePrimaryFont()
+    {
+        if (fontSettings == null) return;
+
+        fontSettings.PrimaryFont = $"{selectedPrimaryFont}, sans-serif";
+        if (fontSettings.UseGoogleFonts && PopularFonts.Fonts.ContainsKey(selectedPrimaryFont))
+        {
+            fontSettings.GoogleFontsUrl = PopularFonts.Fonts[selectedPrimaryFont];
+        }
+    }
+
+    private void UpdateHeadingFont()
+    {
+        if (fontSettings == null) return;
+        fontSettings.HeadingFont = $"{selectedHeadingFont}, sans-serif";
+    }
+
+    private async Task SaveSettings()
+    {
+        if (fontSettings == null) return;
+
+        await FontService.UpdateAsync(fontSettings);
+        successMessage = "Font ayarlari kaydedildi! Sayfayi yenileyiniz.";
+        await ApplyFontSettings();
+    }
+
+    private async Task PreviewChanges() => await ApplyFontSettings();
+
+    private async Task ResetToDefault()
+    {
+        await FontService.ResetToDefaultAsync();
+        fontSettings = await FontService.GetOrCreateDefaultAsync();
+        selectedPrimaryFont = ExtractFontName(fontSettings.PrimaryFont);
+        selectedHeadingFont = ExtractFontName(fontSettings.HeadingFont);
+        successMessage = "Varsayilan ayarlara sifirlandi!";
+    }
+
+    private async Task ApplyFontSettings()
+    {
+        if (fontSettings == null) return;
+
+        var css = FontService.GenerateCssVariables(fontSettings);
+
+        if (fontSettings.UseGoogleFonts && !string.IsNullOrEmpty(fontSettings.GoogleFontsUrl))
+        {
+            await JS.InvokeVoidAsync("eval", $@"
+                var existingLink = document.getElementById('google-fonts');
+                if (existingLink) existingLink.remove();
+
+                var link = document.createElement('link');
+                link.id = 'google-fonts';
+                link.rel = 'stylesheet';
+                link.href = '{fontSettings.GoogleFontsUrl}';
+                document.head.appendChild(link);
+            ");
+        }
+
+        await JS.InvokeVoidAsync("eval", $@"
+            var existingStyle = document.getElementById('custom-fonts');
+            if (existingStyle) existingStyle.remove();
+
+            var style = document.createElement('style');
+            style.id = 'custom-fonts';
+            style.innerHTML = `{css}`;
+            document.head.appendChild(style);
+        ");
+
+        StateHasChanged();
+    }
+
+    private string GetPreviewStyle()
+    {
+        if (fontSettings == null) return "";
+
+        return $@"
+            font-family: {fontSettings.PrimaryFont};
+            font-size: {fontSettings.BaseFontSize}px;
+            font-weight: {fontSettings.BodyFontWeight};
+            line-height: {fontSettings.LineHeight};
+            letter-spacing: {fontSettings.LetterSpacing};
+        ";
+    }
+
+    private static string ExtractFontName(string fontFamily)
+    {
+        return fontFamily.Split(',')[0].Trim().Trim('\'', '"');
+    }
+}

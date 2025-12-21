@@ -1,0 +1,6 @@
+<Project>
+  <!-- Make dotnet CLI operations deterministic in repo root -->
+  <PropertyGroup>
+    <RestoreLockedMode>false</RestoreLockedMode>
+  </PropertyGroup>
+</Project>

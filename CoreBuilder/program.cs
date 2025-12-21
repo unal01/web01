@@ -1,11 +1,13 @@
-namespace CoreBuilder
+// App entry point.
+// This project is referenced by CoreBuilder.Admin, but it also needs to be runnable/buildable via dotnet CLI.
+
+namespace CoreBuilder;
+
+public static class Program
 {
-    public class Program
+    public static void Main(string[] args)
     {
-        public static void Main(string[] args)
-        {
-            // Bu proje bir kütüphane olarak kullanıldığı için
-            // burası boş kalabilir. Sadece derleyici hata vermesin diye var.
-        }
+        // Intentionally left minimal.
+        // Hosting is configured in `Program.Enhanced.cs` for enhanced scenarios.
     }
 }

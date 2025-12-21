@@ -8,27 +8,39 @@ namespace CoreBuilder.Services
     {
         private readonly EducationSiteFactory _educationFactory;
         private readonly MarketingSiteFactory _marketingFactory;
+        private readonly GovernmentSiteFactory _governmentFactory;
+        private readonly ExamPrepSiteFactory _examPrepFactory;
 
-        public SiteGenerationService(EducationSiteFactory educationFactory, MarketingSiteFactory marketingFactory)
+        public SiteGenerationService(
+            EducationSiteFactory educationFactory, 
+            MarketingSiteFactory marketingFactory,
+            GovernmentSiteFactory governmentFactory,
+            ExamPrepSiteFactory examPrepFactory)
         {
             _educationFactory = educationFactory;
             _marketingFactory = marketingFactory;
+            _governmentFactory = governmentFactory;
+            _examPrepFactory = examPrepFactory;
         }
 
         public async Task GenerateDefaultContent(Tenant tenant)
         {
-            // DÜZELTİLEN KISIM: tenant.CategoryType yerine tenant.Category kullanıyoruz.
             switch (tenant.Category)
             {
                 case "Education":
-                    // Eğer Factory metodunuzun adı farklıysa (örn: Create, Build) burayı ona göre düzeltin.
-                    // Genelde "CreateDefaultPagesAsync" veya benzeri bir isim kullanmış olabilirsiniz.
-                    // Eğer hata alırsanız metodun içini kontrol edin.
                     await _educationFactory.CreateDefaultPagesAsync(tenant.Id);
                     break;
 
                 case "Marketing":
                     await _marketingFactory.CreateDefaultPagesAsync(tenant.Id);
+                    break;
+
+                case "Government":
+                    await _governmentFactory.CreateDefaultPagesAsync(tenant.Id);
+                    break;
+
+                case "ExamPrep":
+                    await _examPrepFactory.CreateDefaultPagesAsync(tenant.Id);
                     break;
 
                 default:

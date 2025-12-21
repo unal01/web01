@@ -4,205 +4,104 @@
 @using CoreBuilder.Models
 @using CoreBuilder.Services
 @using CoreBuilder.Data
+@using Microsoft.EntityFrameworkCore
 @inject ContentService ContentService
 @inject AppDbContext Context
 @inject NavigationManager Nav
 @implements IDisposable
 
-<PageTitle>Demo Web Sitesi</PageTitle>
+<PageTitle>@(currentTenant?.Name ?? "Demo Web Sitesi")</PageTitle>
 
 <style>
-    .demo-container {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        margin: 0;
-        padding: 0;
-    }
+    .demo-container { font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; }
+    .top-nav { background: @(currentTenant?.HeaderColor ?? "#ffffff"); box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 15px 0; position: sticky; top: 0; z-index: 100; }
+    .nav-brand { font-size: 1.5rem; font-weight: bold; color: @(currentTenant?.HeaderTextColor ?? "#333333"); text-decoration: none; display: flex; align-items: center; gap: 12px; }
+    .nav-brand:hover { color: @(currentTenant?.HeaderTextColor ?? "#333333"); }
+    .nav-brand img { height: 40px; width: auto; object-fit: contain; }
+    .nav-menu { display: flex; gap: 20px; list-style: none; margin: 0; padding: 0; }
+    .nav-link { color: @(currentTenant?.HeaderTextColor ?? "#333333"); text-decoration: none; padding: 8px 15px; border-radius: 5px; transition: background 0.3s; opacity: 0.9; }
+    .nav-link:hover { background: rgba(0,0,0,0.1); color: @(currentTenant?.HeaderTextColor ?? "#333333"); opacity: 1; }
+    .dropdown { position: relative; display: inline-block; }
+    .dropdown-content { display: none; position: absolute; background-color: #fff; min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1; border-radius: 4px; }
+    .dropdown:hover .dropdown-content { display: block; }
+    .dropdown-content a { color: #333; padding: 12px 16px; text-decoration: none; display: block; }
+    .dropdown-content a:hover { background-color: #f1f1f1 }
     
-    .top-nav {
-        background: #fff;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        padding: 15px 0;
-        position: sticky;
-        top: 0;
-        z-index: 100;
-    }
-    
-    .nav-brand {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #007bff;
-        text-decoration: none;
-    }
-    
-    .nav-menu {
-        display: flex;
-        gap: 20px;
-        list-style: none;
-        margin: 0;
-        padding: 0;
-    }
-    
-    .nav-link {
-        color: #333;
-        text-decoration: none;
-        padding: 8px 15px;
-        border-radius: 5px;
-        transition: background 0.3s;
-    }
-    
-    .nav-link:hover {
-        background: #f8f9fa;
-    }
-    
-    .hero-slider {
-        position: relative;
-        height: 500px;
-        background: #000;
-        overflow: hidden;
-    }
-    
-    .hero-slide {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        background-size: cover;
-        background-position: center;
-        display: none;
-    }
-    
-    .hero-slide.active { display: block; }
-    
-    .hero-content {
-        position: absolute;
-        bottom: 50px;
-        left: 50px;
-        color: white;
-        text-shadow: 2px 2px 8px rgba(0,0,0,0.7);
-        z-index: 5;
-    }
-    
+    .hero-slider { position: relative; height: 500px; background: #000; overflow: hidden; }
+    .hero-slide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; opacity: 0; visibility: hidden; transition: opacity 0.5s ease-in-out; }
+    .hero-slide.active { opacity: 1; visibility: visible; }
+    .hero-content { position: absolute; bottom: 50px; left: 50px; color: white; text-shadow: 2px 2px 8px rgba(0,0,0,0.7); z-index: 5; }
     .hero-content h1 { font-size: 3rem; margin: 0; font-weight: bold; }
     .hero-content p { font-size: 1.2rem; margin: 10px 0; }
-    
-    .hero-btn {
-        display: inline-block;
-        padding: 12px 30px;
-        background: #007bff;
-        color: white;
-        text-decoration: none;
-        border-radius: 5px;
-        margin-top: 15px;
-        font-weight: bold;
-    }
-    
-    .page-content {
-        padding: 60px 20px;
-        max-width: 1000px;
-        margin: 0 auto;
-        line-height: 1.8;
-    }
-    
-    .page-content h1 {
-        font-size: 2.5rem;
-        margin-bottom: 30px;
-        color: #333;
-    }
-    
-    .page-content img {
-        max-width: 100%;
-        height: auto;
-    }
-    
-    .announcements-section {
-        padding: 60px 20px;
-        background: #f8f9fa;
-    }
-    
-    .section-title {
-        text-align: center;
-        font-size: 2.5rem;
-        margin-bottom: 40px;
-        color: #333;
-        font-weight: bold;
-    }
-    
-    .announcement-card {
-        background: white;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 30px;
-        transition: transform 0.3s;
-    }
-    
-    .announcement-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-    }
-    
-    .announcement-card.important {
-        border: 3px solid #dc3545;
-    }
-    
-    .announcement-image {
-        width: 100%;
-        height: 250px;
-        object-fit: cover;
-    }
-    
-    .announcement-content {
-        padding: 25px;
-    }
-    
-    .announcement-badge {
-        display: inline-block;
-        padding: 5px 15px;
-        background: #dc3545;
-        color: white;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
-    
-    .announcement-title {
-        font-size: 1.5rem;
-        margin: 10px 0;
-        color: #333;
-        font-weight: 600;
-    }
-    
-    .nav-dots {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 10px;
-        z-index: 10;
-    }
-    
-    .nav-dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.5);
-        cursor: pointer;
-        border: 2px solid white;
-    }
-    
+    .hero-btn { display: inline-block; padding: 12px 30px; background: @(currentTenant?.HeaderColor ?? "#007bff"); color: @(currentTenant?.HeaderTextColor ?? "#fff"); text-decoration: none; border-radius: 5px; margin-top: 15px; font-weight: bold; }
+    .nav-dots { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 10; }
+    .nav-dot { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,0.5); cursor: pointer; border: 2px solid white; }
     .nav-dot.active { background: white; }
     
-    .site-selector {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 80px 20px;
-        text-align: center;
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
+    .announcements-section { padding: 40px 20px; background: linear-gradient(135deg, @(currentTenant?.HeaderColor ?? "#667eea") 0%, #764ba2 100%); }
+    .announcements-section h3 { color: @(currentTenant?.HeaderTextColor ?? "white"); margin-bottom: 25px; text-align: center; }
+    .announcement-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.15); margin-bottom: 20px; display: flex; transition: transform 0.3s; }
+    .announcement-card:hover { transform: translateY(-3px); }
+    .announcement-card-image { width: 150px; min-height: 120px; background-size: cover; background-position: center; flex-shrink: 0; }
+    .announcement-card-image.no-image { background: linear-gradient(135deg, #f0f0f0, #e0e0e0); display: flex; align-items: center; justify-content: center; }
+    .announcement-card-body { padding: 15px; flex-grow: 1; }
+    .announcement-card-body h5 { margin: 0 0 8px 0; font-size: 1rem; }
+    .announcement-card-body p { margin: 0; color: #666; font-size: 0.9rem; }
+    .announcement-card-body .date { color: #999; font-size: 0.8rem; margin-top: 8px; }
+    .announcement-badge { background: #dc3545; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; margin-left: 8px; }
+    
+    .news-section { padding: 60px 20px; background: #f8f9fa; }
+    .news-section h2 { text-align: center; margin-bottom: 40px; font-weight: bold; color: #333; }
+    .news-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; max-width: 1200px; margin: 0 auto; }
+    .news-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.1); transition: transform 0.3s; }
+    .news-card:hover { transform: translateY(-10px); }
+    .news-card img { width: 100%; height: 200px; object-fit: cover; }
+    .news-card-body { padding: 20px; }
+    .news-card h5 { font-weight: 600; margin-bottom: 10px; }
+    .news-card p { color: #666; font-size: 0.9rem; }
+    .news-card .date { color: #999; font-size: 0.8rem; margin-top: 15px; }
+    
+    .contact-section { padding: 60px 0; }
+    .contact-btn { display: inline-flex; align-items: center; gap: 10px; padding: 15px 25px; background: @(currentTenant?.HeaderColor ?? "#333"); color: @(currentTenant?.HeaderTextColor ?? "white"); text-decoration: none; border-radius: 8px; font-weight: 500; transition: all 0.3s; margin-bottom: 10px; min-width: 280px; }
+    .contact-btn:hover { opacity: 0.9; color: @(currentTenant?.HeaderTextColor ?? "white"); transform: translateX(5px); }
+    .contact-email-btn { background: #6c757d; color: white; }
+    .social-icons { display: flex; gap: 15px; margin-top: 20px; }
+    .social-icon { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; transition: transform 0.3s; }
+    .social-icon:hover { transform: scale(1.1); }
+    .social-whatsapp { background: #25D366; }
+    .social-instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+    .social-facebook { background: #1877F2; }
+    .social-youtube { background: #FF0000; }
+    .contact-map { border-radius: 12px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+    .contact-address { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 20px; }
+    
+    .gallery-section { padding: 60px 20px; background: #f8f9fa; }
+    .gallery-section h2 { text-align: center; margin-bottom: 40px; font-weight: bold; color: #333; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; max-width: 1200px; margin: 0 auto; }
+    .gallery-item { position: relative; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.1); transition: all 0.3s ease; background: #fff; aspect-ratio: 4/3; }
+    .gallery-item:hover { transform: translateY(-8px); box-shadow: 0 15px 40px rgba(0,0,0,0.2); }
+    .gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gallery-item video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+    .gallery-item iframe { width: 100%; height: 100%; border: 0; }
+    .gallery-item-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 20px 15px 15px; color: white; transform: translateY(100%); transition: transform 0.3s ease; }
+    .gallery-item:hover .gallery-item-overlay { transform: translateY(0); }
+    .gallery-item-overlay h5 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .gallery-item-overlay p { margin: 5px 0 0; font-size: 0.85rem; opacity: 0.9; }
+    .gallery-item-badge { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.7); color: white; padding: 6px 12px; border-radius: 25px; font-size: 0.75rem; display: flex; align-items: center; gap: 6px; backdrop-filter: blur(5px); }
+    
+    .page-content { padding: 60px 20px; max-width: 1000px; margin: 0 auto; line-height: 1.8; }
+    .page-content h1 { font-size: 2.5rem; margin-bottom: 30px; color: #333; }
+    
+    .site-selector { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 80px 20px; text-align: center; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .site-card { background: white; border-radius: 12px; padding: 30px; text-align: center; transition: transform 0.3s; cursor: pointer; }
+    .site-card:hover { transform: translateY(-5px); }
+    .site-card-logo { width: 80px; height: 80px; object-fit: contain; margin-bottom: 15px; }
+    .site-card-icon { font-size: 3rem; color: #667eea; margin-bottom: 15px; }
+    
+    .site-footer { background: @(currentTenant?.HeaderColor ?? "#333"); color: @(currentTenant?.HeaderTextColor ?? "white"); padding: 30px 0; text-align: center; }
+    .site-footer a { color: @(currentTenant?.HeaderTextColor ?? "white"); opacity: 0.8; }
+    
+    @@media (max-width: 768px) { .news-grid { grid-template-columns: 1fr; } .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); } .announcement-card { flex-direction: column; } .announcement-card-image { width: 100%; height: 150px; } }
 </style>
 
 <div class="demo-container">
@@ -210,16 +109,18 @@
     {
         <div class="site-selector">
             <div class="container">
-                <h2>🌐 Demo Web Sitesi</h2>
-                <p class="mb-5" style="font-size: 1.2rem;">Görmek istediğiniz siteyi seçin</p>
-                <div class="row justify-content-center">
+                <h2 class="mb-2"><i class="bi bi-globe"></i> Demo Web Sitesi</h2>
+                <p class="mb-5">Gormek istediginiz siteyi secin</p>
+                <div class="row justify-content-center g-4">
                     @foreach (var tenant in tenants)
                     {
-                        <div class="col-md-4 mb-3">
-                            <button class="btn btn-light btn-lg w-100 py-4" @onclick="() => SelectTenant(tenant.Id)">
-                                <h4 class="mb-1">@tenant.Name</h4>
+                        <div class="col-md-4">
+                            <div class="site-card" @onclick="() => SelectTenant(tenant.Id)">
+                                @if (!string.IsNullOrEmpty(tenant.LogoUrl)) { <img src="@tenant.LogoUrl" alt="@tenant.Name" class="site-card-logo" /> }
+                                else { <div class="site-card-icon"><i class="bi bi-building"></i></div> }
+                                <h4 class="text-dark mb-1">@tenant.Name</h4>
                                 <small class="text-muted">@tenant.Domain</small>
-                            </button>
+                            </div>
                         </div>
                     }
                 </div>
@@ -230,107 +131,209 @@
     {
         <div class="top-nav">
             <div class="container d-flex justify-content-between align-items-center">
-                <a href="/demo/@TenantIdParam" class="nav-brand">@(currentTenant?.Name ?? "Demo Site")</a>
+                <a href="/demo/@TenantIdParam" class="nav-brand">
+                    @if (!string.IsNullOrEmpty(currentTenant?.LogoUrl)) { <img src="@currentTenant.LogoUrl" alt="@currentTenant.Name" /> }
+                    <span>@(currentTenant?.Name ?? "Demo Site")</span>
+                </a>
                 <ul class="nav-menu d-flex align-items-center">
-                    <li><a href="/demo/@TenantIdParam" class="nav-link">🏠 Ana Sayfa</a></li>
-                    @foreach (var singlePage in pages)
+                    @foreach (var singlePage in pages.Where(p => p.ParentPageId == null).OrderBy(p => p.MenuOrder))
                     {
-                        var pageUrl = $"/demo/{TenantIdParam}/{singlePage.Slug}";
-                        <li><a href="@pageUrl" class="nav-link">@singlePage.Title</a></li>
+                        var children = pages.Where(p => p.ParentPageId == singlePage.Id).ToList();
+                        if (children.Any())
+                        {
+                            <li class="dropdown">
+                                <a href="#" class="nav-link">@singlePage.Title <i class="bi bi-chevron-down"></i></a>
+                                <div class="dropdown-content">
+                                    <a href="/demo/@TenantIdParam/@singlePage.Slug">@singlePage.Title</a>
+                                    @foreach(var child in children.OrderBy(c => c.MenuOrder)) { <a href="/demo/@TenantIdParam/@child.Slug">@child.Title</a> }
+                                </div>
+                            </li>
+                        }
+                        else { <li><a href="/demo/@TenantIdParam/@singlePage.Slug" class="nav-link">@singlePage.Title</a></li> }
                     }
                 </ul>
             </div>
         </div>
 
-        @if (!string.IsNullOrEmpty(PageSlug))
+        @if (PageSlug == "iletisim" || PageSlug == "contact")
         {
-            <div class="page-content">
-                @if (currentPage != null)
-                {
-                    <h1>@currentPage.Title</h1>
-                    @((MarkupString)currentPage.Content)
-                }
-                else
-                {
-                    <div class="alert alert-warning">Sayfa bulunamadı.</div>
-                }
-            </div>
-        }
-        else
-        {
-            @if (sliders.Any())
-            {
-                <div class="hero-slider">
-                    @for (int i = 0; i < sliders.Count; i++)
+            <div class="contact-section">
+                <div class="container">
+                    <h1 class="text-center mb-5"><i class="bi bi-telephone me-2"></i>Iletisim</h1>
+                    @if (contactInfo != null)
                     {
-                        var slider = sliders[i];
-                        <div class="hero-slide @(i == currentSlide ? "active" : "")" style="background-image: url('@slider.ImageUrl')">
-                            <div class="hero-content">
-                                <h1>@slider.Title</h1>
-                                <p>@slider.Description</p>
-                                @if (!string.IsNullOrEmpty(slider.ButtonText))
+                        <div class="row">
+                            <div class="col-lg-5 mb-4">
+                                @if (!string.IsNullOrEmpty(contactInfo.Phone1)) { <a href="tel:@contactInfo.Phone1.Replace(" ", "")" class="contact-btn d-block"><i class="bi bi-telephone-fill"></i><span>@contactInfo.Phone1</span></a> }
+                                @if (!string.IsNullOrEmpty(contactInfo.Phone2)) { <a href="tel:@contactInfo.Phone2.Replace(" ", "")" class="contact-btn d-block"><i class="bi bi-telephone-fill"></i><span>@contactInfo.Phone2</span></a> }
+                                @if (!string.IsNullOrEmpty(contactInfo.Email)) { <a href="mailto:@contactInfo.Email" class="contact-btn contact-email-btn d-block"><i class="bi bi-envelope-fill"></i><span>@contactInfo.Email</span></a> }
+                                @if (!string.IsNullOrEmpty(contactInfo.Address))
                                 {
-                                    <a href="@slider.ButtonLink" class="hero-btn">@slider.ButtonText</a>
+                                    <div class="contact-address">
+                                        <h5><i class="bi bi-geo-alt-fill text-danger me-2"></i>Adres:</h5>
+                                        <p class="mb-0">@contactInfo.Address @if (!string.IsNullOrEmpty(contactInfo.District)) { <text> @contactInfo.District</text> } @if (!string.IsNullOrEmpty(contactInfo.City)) { <text>/@contactInfo.City</text> }</p>
+                                    </div>
                                 }
+                                <h5 class="mt-4 mb-3">Bizi Takip Edin</h5>
+                                <div class="social-icons">
+                                    @if (!string.IsNullOrEmpty(contactInfo.WhatsApp)) { <a href="https://wa.me/@contactInfo.WhatsApp" target="_blank" class="social-icon social-whatsapp"><i class="bi bi-whatsapp"></i></a> }
+                                    @if (!string.IsNullOrEmpty(contactInfo.Instagram)) { <a href="https://instagram.com/@contactInfo.Instagram" target="_blank" class="social-icon social-instagram"><i class="bi bi-instagram"></i></a> }
+                                    @if (!string.IsNullOrEmpty(contactInfo.Facebook)) { <a href="https://facebook.com/@contactInfo.Facebook" target="_blank" class="social-icon social-facebook"><i class="bi bi-facebook"></i></a> }
+                                    @if (!string.IsNullOrEmpty(contactInfo.YouTube)) { <a href="https://youtube.com/@@contactInfo.YouTube" target="_blank" class="social-icon social-youtube"><i class="bi bi-youtube"></i></a> }
+                                </div>
+                            </div>
+                            <div class="col-lg-7">
+                                <h5 class="mb-3">Konum</h5>
+                                @if (!string.IsNullOrEmpty(contactInfo.GoogleMapsEmbedUrl)) { <div class="contact-map"><iframe src="@contactInfo.GoogleMapsEmbedUrl" width="100%" height="450" style="border:0;" allowfullscreen="" loading="lazy"></iframe></div> }
+                                else { <div class="contact-map bg-light d-flex align-items-center justify-content-center" style="height: 450px;"><div class="text-center text-muted"><i class="bi bi-map" style="font-size: 4rem;"></i><p class="mt-2">Harita eklenmemis</p></div></div> }
                             </div>
                         </div>
                     }
-                    
-                    @if (sliders.Count > 1)
-                    {
-                        <div class="nav-dots">
-                            @for (int i = 0; i < sliders.Count; i++)
-                            {
-                                var index = i;
-                                <div class="nav-dot @(i == currentSlide ? "active" : "")" @onclick="() => ChangeSlide(index)"></div>
-                            }
-                        </div>
-                    }
-                </div>
-            }
-
-            <div class="announcements-section">
-                <div class="container">
-                    <h2 class="section-title">📢 Duyurular</h2>
-                    
-                    @if (announcements.Any())
-                    {
-                        <div class="row">
-                            @foreach (var announcement in announcements)
-                            {
-                                <div class="col-md-6 col-lg-4">
-                                    <div class="announcement-card @(announcement.IsImportant ? "important" : "")">
-                                        @if (!string.IsNullOrEmpty(announcement.ImageUrl))
-                                        {
-                                            <img src="@announcement.ImageUrl" class="announcement-image" alt="@announcement.Title" />
-                                        }
-                                        <div class="announcement-content">
-                                            @if (announcement.IsImportant)
-                                            {
-                                                <span class="announcement-badge">⚠️ ÖNEMLİ</span>
-                                            }
-                                            <h3 class="announcement-title">@announcement.Title</h3>
-                                            <p class="announcement-text">@announcement.Content</p>
-                                            <small class="text-muted">
-                                                📅 @announcement.PublishDate.ToString("dd MMMM yyyy")
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                    }
                 </div>
             </div>
         }
+        else if (currentPage?.Contents?.Any(c => c.IsActive) == true)
+        {
+            <div class="page-content" style="padding-bottom: 0;">
+                <h1>@currentPage.Title</h1>
+            </div>
+            
+            @foreach (var content in currentPage.Contents.Where(c => c.IsActive).OrderBy(c => c.DisplayOrder))
+            {
+                @if (content.ContentType == ContentType.WidgetSlider && filteredSliders.Any())
+                {
+                    <div class="hero-slider">
+                        @for (int i = 0; i < filteredSliders.Count; i++)
+                        {
+                            var slider = filteredSliders[i];
+                            <div class="hero-slide @(i == currentSlide ? "active" : "")" style="background-image: url('@slider.ImageUrl')">
+                                <div class="hero-content">
+                                    <h1>@slider.Title</h1>
+                                    <p>@slider.Description</p>
+                                    @if (!string.IsNullOrEmpty(slider.ButtonText)) { <a href="@slider.ButtonLink" class="hero-btn">@slider.ButtonText</a> }
+                                </div>
+                            </div>
+                        }
+                        @if (filteredSliders.Count > 1)
+                        {
+                            <div class="nav-dots">
+                                @for (int i = 0; i < filteredSliders.Count; i++) { var index = i; <div class="nav-dot @(i == currentSlide ? "active" : "")" @onclick="() => ChangeSlide(index)"></div> }
+                            </div>
+                        }
+                    </div>
+                }
+                else if (content.ContentType == ContentType.WidgetAnnouncements && filteredAnnouncements.Any())
+                {
+                    <div class="announcements-section">
+                        <div class="container">
+                            <h3><i class="bi bi-megaphone me-2"></i>Duyurular</h3>
+                            <div class="row">
+                                @foreach (var ann in filteredAnnouncements.Take(4))
+                                {
+                                    <div class="col-md-6">
+                                        <div class="announcement-card">
+                                            @if (!string.IsNullOrEmpty(ann.ImageUrl)) { <div class="announcement-card-image" style="background-image: url('@ann.ImageUrl');"></div> }
+                                            else { <div class="announcement-card-image no-image"><i class="bi bi-megaphone text-muted" style="font-size:2rem;"></i></div> }
+                                            <div class="announcement-card-body">
+                                                <h5>@ann.Title @if (ann.IsImportant) { <span class="announcement-badge">ONEMLI</span> }</h5>
+                                                <p>@(ann.Content.Length > 80 ? ann.Content.Substring(0, 80) + "..." : ann.Content)</p>
+                                                <div class="date"><i class="bi bi-calendar me-1"></i>@ann.PublishDate.ToString("dd.MM.yyyy")</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (content.ContentType == ContentType.WidgetNews && filteredNews.Any())
+                {
+                    <div class="news-section">
+                        <div class="container">
+                            <h2><i class="bi bi-newspaper me-2"></i>Haberler</h2>
+                            <div class="news-grid">
+                                @foreach (var news in filteredNews.Take(6))
+                                {
+                                    <div class="news-card">
+                                        @if (!string.IsNullOrEmpty(news.FeaturedImageUrl)) { <img src="@news.FeaturedImageUrl" alt="@news.Title" /> }
+                                        else { <div style="height: 200px; background: @(currentTenant?.HeaderColor ?? "#667eea"); display: flex; align-items: center; justify-content: center;"><i class="bi bi-newspaper" style="font-size: 3rem; color: @(currentTenant?.HeaderTextColor ?? "white");"></i></div> }
+                                        <div class="news-card-body">
+                                            <h5>@news.Title</h5>
+                                            <p>@(news.Summary ?? (news.Content.Length > 100 ? news.Content.Substring(0, 100) + "..." : news.Content))</p>
+                                            <div class="date"><i class="bi bi-calendar me-1"></i>@news.PublishDate.ToString("dd MMM yyyy")</div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+            
+            @if (GetGalleryItems().Any())
+            {
+                <div class="gallery-section">
+                    <div class="container">
+                        <h2><i class="bi bi-images me-2"></i>Galeri</h2>
+                        <div class="gallery-grid">
+                            @foreach (var item in GetGalleryItems())
+                            {
+                                <div class="gallery-item">
+                                    @if (item.ContentType == ContentType.Video)
+                                    {
+                                        @if (!string.IsNullOrEmpty(item.EmbedCode))
+                                        {
+                                            @((MarkupString)item.EmbedCode)
+                                        }
+                                        else
+                                        {
+                                            <video controls poster="@item.ThumbnailUrl">
+                                                <source src="@item.MediaUrl" type="video/mp4" />
+                                            </video>
+                                        }
+                                        <div class="gallery-item-badge"><i class="bi bi-play-circle-fill"></i> Video</div>
+                                    }
+                                    else
+                                    {
+                                        <img src="@item.MediaUrl" alt="@item.Title" loading="lazy" />
+                                        <div class="gallery-item-badge"><i class="bi bi-image"></i> Foto</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(item.Title) || !string.IsNullOrEmpty(item.Description))
+                                    {
+                                        <div class="gallery-item-overlay">
+                                            @if (!string.IsNullOrEmpty(item.Title)) { <h5>@item.Title</h5> }
+                                            @if (!string.IsNullOrEmpty(item.Description)) { <p>@item.Description</p> }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+            
+            @if (!string.IsNullOrEmpty(currentPage?.Content) && !currentPage.Content.Contains("Buraya icerik ekleyin")) 
+            { 
+                <div class="page-content" style="padding-top: 20px;">@((MarkupString)currentPage.Content)</div> 
+            }
+        }
+        else if (currentPage != null)
+        {
+            <div class="page-content">
+                <h1>@currentPage.Title</h1>
+                @((MarkupString)(currentPage.Content ?? ""))
+            </div>
+        }
+        else { <div class="page-content"><div class="alert alert-info">Sayfa bulunamadi veya icerik eklenmemis.</div></div> }
 
-        <div class="text-center py-5 bg-light">
-            <button class="btn btn-secondary btn-lg me-2" @onclick="BackToSelector">
-                ← Başka Site
-            </button>
-            <a href="/" class="btn btn-primary btn-lg">
-                ⚙️ Admin Panel
-            </a>
+        <div class="site-footer">
+            <div class="container">
+                <p class="mb-2">� @DateTime.Now.Year @(currentTenant?.Name ?? "Demo Site") - Tum haklari saklidir.</p>
+                <div class="d-flex gap-3 justify-content-center">
+                    <button class="btn btn-outline-light btn-sm" @onclick="BackToSelector"><i class="bi bi-arrow-left"></i> Baska Site</button>
+                    <a href="/" class="btn btn-outline-light btn-sm"><i class="bi bi-gear"></i> Admin Panel</a>
+                </div>
+            </div>
         </div>
     }
 </div>
@@ -343,15 +346,25 @@
     private Tenant? currentTenant;
     private List<Slider> sliders = new();
     private List<Announcement> announcements = new();
+    private List<NewsArticle> newsArticles = new();
     private List<Page> pages = new();
     private Page? currentPage;
+    private ContactInfo? contactInfo;
     private int currentSlide = 0;
     private System.Threading.Timer? sliderTimer;
+    
+    private List<Slider> filteredSliders = new();
+
+    private List<PageContent> GetGalleryItems()
+    {
+        return currentPage?.Contents?.Where(c => c.IsActive && (c.ContentType == ContentType.Image || c.ContentType == ContentType.Video) && !string.IsNullOrEmpty(c.MediaUrl)).OrderBy(c => c.DisplayOrder).ToList() ?? new List<PageContent>();
+    }
+    private List<Announcement> filteredAnnouncements = new();
+    private List<NewsArticle> filteredNews = new();
 
     protected override async Task OnInitializedAsync()
     {
         tenants = Context.Tenants.ToList();
-        
         if (!string.IsNullOrEmpty(TenantIdParam) && Guid.TryParse(TenantIdParam, out var tenantGuid))
         {
             await LoadContent(tenantGuid);
@@ -364,57 +377,48 @@
         if (!string.IsNullOrEmpty(TenantIdParam) && Guid.TryParse(TenantIdParam, out var tenantGuid))
         {
             await LoadContent(tenantGuid);
+            currentPage = !string.IsNullOrEmpty(PageSlug) 
+                ? pages.FirstOrDefault(p => p.Slug == PageSlug) 
+                : pages.FirstOrDefault(p => p.Slug == "home" || p.Slug == "anasayfa" || p.Slug == "index");
             
-            if (!string.IsNullOrEmpty(PageSlug))
+            if (currentPage != null)
             {
-                currentPage = Context.Pages.FirstOrDefault(p => p.TenantId == tenantGuid && p.Slug == PageSlug && p.IsPublished);
+                filteredSliders = await ContentService.GetSlidersForPageAsync(tenantGuid, currentPage.Id);
+                filteredAnnouncements = await ContentService.GetAnnouncementsForPageAsync(tenantGuid, currentPage.Id);
+                filteredNews = await ContentService.GetNewsForPageAsync(tenantGuid, currentPage.Id);
+            }
+            else
+            {
+                filteredSliders = sliders;
+                filteredAnnouncements = announcements;
+                filteredNews = newsArticles;
             }
         }
     }
 
-    private void SelectTenant(Guid id)
-    {
-        Nav.NavigateTo($"/demo/{id}");
-    }
-
-    private void BackToSelector()
-    {
-        Nav.NavigateTo("/demo");
-    }
+    private void SelectTenant(Guid id) => Nav.NavigateTo($"/demo/{id}");
+    private void BackToSelector() => Nav.NavigateTo("/demo");
 
     private async Task LoadContent(Guid tenantId)
     {
         currentTenant = Context.Tenants.FirstOrDefault(t => t.Id == tenantId);
         sliders = await ContentService.GetSlidersAsync(tenantId);
         announcements = await ContentService.GetAnnouncementsAsync(tenantId);
-        pages = Context.Pages.Where(p => p.TenantId == tenantId && p.IsPublished).ToList();
+        newsArticles = await ContentService.GetNewsArticlesAsync(tenantId);
+        contactInfo = Context.ContactInfos.FirstOrDefault(c => c.TenantId == tenantId);
+        pages = Context.Pages.Include(p => p.Contents).Where(p => p.TenantId == tenantId && p.IsPublished && p.ShowInMenu).OrderBy(p => p.MenuOrder).ToList();
     }
 
-    private void ChangeSlide(int index)
-    {
-        currentSlide = index;
-        StateHasChanged();
-    }
+    private void ChangeSlide(int index) { currentSlide = index; StateHasChanged(); }
 
     private void StartSliderTimer()
     {
         sliderTimer?.Dispose();
-        
         if (sliders.Count > 1)
         {
-            sliderTimer = new System.Threading.Timer((_) =>
-            {
-                InvokeAsync(() =>
-                {
-                    currentSlide = (currentSlide + 1) % sliders.Count;
-                    StateHasChanged();
-                });
-            }, null, 5000, 5000);
+            sliderTimer = new System.Threading.Timer((_) => InvokeAsync(() => { currentSlide = (currentSlide + 1) % Math.Max(1, filteredSliders.Count); StateHasChanged(); }), null, 5000, 5000);
         }
     }
 
-    public void Dispose()
-    {
-        sliderTimer?.Dispose();
-    }
+    public void Dispose() => sliderTimer?.Dispose();
 }

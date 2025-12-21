@@ -24,27 +24,44 @@ namespace CoreBuilder.Factories
                     Id = Guid.NewGuid(),
                     TenantId = tenantId,
                     Title = "Anasayfa",
-                    Slug = "home",
-                    Content = "<h1>Eğitim Kurumumuza Hoşgeldiniz</h1><p>Geleceğinizi bizimle şekillendirin.</p>",
-                    IsPublished = true
+                    Slug = "anasayfa",
+                    Content = "<h1>Hosgeldiniz</h1><p>Egitim kurumumuza hosgeldiniz.</p>",
+                    IsPublished = true,
+                    ShowInMenu = true,
+                    MenuOrder = 0
                 },
                 new Page
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenantId,
-                    Title = "Hakkımızda",
-                    Slug = "about",
-                    Content = "<h1>Biz Kimiz?</h1><p>20 yıldır eğitim sektöründe öncüyüz.</p>",
-                    IsPublished = true
+                    Title = "Hakkimizda",
+                    Slug = "hakkimizda",
+                    Content = "<h1>Biz Kimiz?</h1><p>20 yildir egitim sektorunde oncuyuz.</p>",
+                    IsPublished = true,
+                    ShowInMenu = true,
+                    MenuOrder = 1
                 },
                 new Page
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenantId,
                     Title = "Kurslar",
-                    Slug = "courses",
-                    Content = "<h1>Eğitimlerimiz</h1><ul><li>Matematik</li><li>Fen Bilimleri</li></ul>",
-                    IsPublished = true
+                    Slug = "kurslar",
+                    Content = "<h1>Egitimlerimiz</h1><ul><li>Matematik</li><li>Fen Bilimleri</li></ul>",
+                    IsPublished = true,
+                    ShowInMenu = true,
+                    MenuOrder = 2
+                },
+                new Page
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    Title = "Iletisim",
+                    Slug = "iletisim",
+                    Content = "<h1>Iletisim</h1><p>Bize ulasin.</p>",
+                    IsPublished = true,
+                    ShowInMenu = true,
+                    MenuOrder = 3
                 }
             };
 
