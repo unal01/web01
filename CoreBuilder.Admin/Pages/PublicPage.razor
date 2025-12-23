@@ -1,4 +1,4 @@
-@page "/preview/{TenantId:guid}/{Slug}"
+﻿@page "/preview/{TenantId:guid}/{Slug}"
 @using CoreBuilder.Models
 @using CoreBuilder.Data
 @inject AppDbContext Context
@@ -19,7 +19,6 @@
         color: #1e293b;
     }
 
-    /* Navbar Tasarımı ve Hizalaması */
     .custom-navbar {
         background-color: var(--primary-color);
         padding: 0;
@@ -38,6 +37,10 @@
         padding: 0;
     }
 
+    .nav-item {
+        position: relative;
+    }
+
     .nav-item-link {
         display: block;
         padding: 1.2rem 1.8rem;
@@ -47,6 +50,19 @@
         font-size: 1rem;
         transition: all 0.2s ease;
         border-bottom: 4px solid transparent;
+        cursor: pointer;
+    }
+
+    .nav-item-link.has-dropdown {
+        cursor: default;
+        pointer-events: none;
+    }
+
+    .nav-item-link.has-dropdown::after {
+        content: '▼';
+        font-size: 0.7rem;
+        margin-left: 0.5rem;
+        opacity: 0.8;
     }
 
     .nav-item-link:hover {
@@ -60,7 +76,50 @@
         border-bottom: 4px solid #fff;
     }
 
-    /* İçerik Kutusu */
+    .dropdown-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background-color: white;
+        min-width: 220px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        border-radius: 0 0 8px 8px;
+        overflow: hidden;
+        z-index: 1000;
+    }
+
+    .nav-item:hover .dropdown-menu {
+        display: block;
+    }
+
+    .dropdown-item {
+        display: block;
+        padding: 0.9rem 1.5rem;
+        color: #333;
+        text-decoration: none;
+        font-weight: 400;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .dropdown-item:last-child {
+        border-bottom: none;
+    }
+
+    .dropdown-item:hover {
+        background-color: var(--primary-color);
+        color: white;
+        padding-left: 2rem;
+    }
+
+    .dropdown-item.active {
+        background-color: rgba(37, 99, 235, 0.1);
+        color: var(--primary-color);
+        font-weight: 600;
+    }
+
     .main-wrapper {
         max-width: 1100px;
         margin: 40px auto;
@@ -102,13 +161,34 @@ else
 {
     <nav class="custom-navbar">
         <ul class="nav-container">
-            @foreach (var p in navPages)
+            @foreach (var p in mainPages)
             {
-                <li>
-                    <a href="/preview/@TenantId/@p.Slug" 
-                       class="nav-item-link @(p.Slug == Slug ? "active-page" : "")">
-                        @p.Title
-                    </a>
+                var childPages = GetChildPages(p.Id);
+                var hasChildren = childPages.Any();
+
+                <li class="nav-item">
+                    @if (hasChildren)
+                    {
+                        <span class="nav-item-link has-dropdown">
+                            @p.Title
+                        </span>
+                        <div class="dropdown-menu">
+                            @foreach (var child in childPages)
+                            {
+                                <a href="/preview/@TenantId/@child.Slug" 
+                                   class="dropdown-item @(child.Slug == Slug ? "active" : "")">
+                                    @child.Title
+                                </a>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <a href="/preview/@TenantId/@p.Slug" 
+                           class="nav-item-link @(p.Slug == Slug ? "active-page" : "")">
+                            @p.Title
+                        </a>
+                    }
                 </li>
             }
         </ul>
@@ -132,7 +212,8 @@ else
     private Tenant? currentTenant;
     private Theme? currentTheme;
     private Page? currentPage;
-    private List<Page> navPages = new();
+    private List<Page> allPages = new();
+    private List<Page> mainPages = new();
 
     protected override void OnParametersSet()
     {
@@ -140,12 +221,23 @@ else
         if (currentTenant != null)
         {
             currentTheme = Context.Themes.Find(currentTenant.ThemeId);
-            navPages = Context.Pages
-                .Where(p => p.TenantId == TenantId && p.IsPublished)
-                .OrderBy(p => p.Title)
+            
+            allPages = Context.Pages
+                .Where(p => p.TenantId == TenantId && p.IsPublished && p.ShowInMenu)
+                .OrderBy(p => p.MenuOrder)
                 .ToList();
 
-            currentPage = navPages.FirstOrDefault(p => p.Slug == Slug);
+            mainPages = allPages.Where(p => p.ParentPageId == null).ToList();
+
+            currentPage = allPages.FirstOrDefault(p => p.Slug == Slug);
         }
+    }
+
+    private List<Page> GetChildPages(Guid parentId)
+    {
+        return allPages
+            .Where(p => p.ParentPageId == parentId)
+            .OrderBy(p => p.MenuOrder)
+            .ToList();
     }
 }

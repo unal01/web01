@@ -1,0 +1,96 @@
+@page "/debug-pages"
+@using CoreBuilder.Data
+@using CoreBuilder.Models
+@inject AppDbContext Context
+@inject NavigationManager Navigation
+
+<PageTitle>Debug Pages</PageTitle>
+
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-header bg-info text-white">
+            <h3>?? Debug All Pages</h3>
+        </div>
+        <div class="card-body">
+            <h5>All Pages in Database:</h5>
+            <table class="table table-bordered table-sm">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>ParentPageId</th>
+                        <th>ShowInMenu</th>
+                        <th>IsPublished</th>
+                        <th>MenuOrder</th>
+                        <th>Tenant</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in allPages.OrderBy(x => x.MenuOrder))
+                    {
+                        var tenant = Context.Tenants.Find(p.TenantId);
+                        var parentTitle = p.ParentPageId.HasValue ? allPages.FirstOrDefault(x => x.Id == p.ParentPageId)?.Title : "NULL";
+                        
+                        <tr class="@(p.ParentPageId == null ? "table-success" : "")">
+                            <td>
+                                @if (p.ParentPageId != null)
+                                {
+                                    <span style="margin-left: 30px;">? </span>
+                                }
+                                <strong>@p.Title</strong>
+                            </td>
+                            <td>@parentTitle</td>
+                            <td>
+                                @if (p.ShowInMenu)
+                                {
+                                    <span class="badge bg-success">? YES</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">? NO</span>
+                                }
+                            </td>
+                            <td>
+                                @if (p.IsPublished)
+                                {
+                                    <span class="badge bg-success">? YES</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">? NO</span>
+                                }
+                            </td>
+                            <td>@p.MenuOrder</td>
+                            <td><small>@tenant?.Name</small></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <hr />
+
+            <div class="alert alert-info">
+                <h5>?? Statistics:</h5>
+                <strong>Parent Pages (ParentPageId = NULL):</strong> @allPages.Count(p => p.ParentPageId == null)
+                <br />
+                <strong>Child Pages (ParentPageId != NULL):</strong> @allPages.Count(p => p.ParentPageId != null)
+                <br />
+                <strong>Pages with ShowInMenu = true:</strong> @allPages.Count(p => p.ShowInMenu)
+                <br />
+                <strong>Pages with IsPublished = true:</strong> @allPages.Count(p => p.IsPublished)
+            </div>
+
+            <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/pages")'>
+                ?? Go to Pages Management
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Page> allPages = new();
+
+    protected override void OnInitialized()
+    {
+        allPages = Context.Pages.ToList();
+    }
+}

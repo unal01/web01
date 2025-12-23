@@ -1,0 +1,422 @@
+@page "/public/{TenantId:guid}/{Slug}"
+@using CoreBuilder.Models
+@using CoreBuilder.Data
+@using CoreBuilder.Services
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Context
+@inject ContentService ContentService
+@inject PageContentService PageContentService
+@layout EmptyLayout
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@(currentPage?.Title ?? currentTenant?.Name ?? "Site")</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary-color: @(currentTheme?.PrimaryColor ?? "#2563eb");
+            --secondary-color: @(currentTheme?.SecondaryColor ?? "#f8fafc");
+            --font-family: @(currentTheme?.FontFamily ?? "system-ui, -apple-system, sans-serif");
+        }
+        body { 
+            font-family: var(--font-family); 
+            background-color: var(--secondary-color); 
+            color: #1e293b; 
+            line-height: 1.6; 
+        }
+        
+        /* Navbar */
+        .site-navbar { 
+            background-color: var(--primary-color); 
+            padding: 0; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+            position: sticky; 
+            top: 0; 
+            z-index: 1000; 
+        }
+        .nav-container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            display: flex; 
+            list-style: none; 
+            padding: 0; 
+        }
+        .nav-item { position: relative; }
+        .nav-link-custom { 
+            display: block; 
+            padding: 1.2rem 1.5rem; 
+            color: rgba(255, 255, 255, 0.95); 
+            text-decoration: none; 
+            font-weight: 500; 
+            transition: all 0.2s; 
+            border-bottom: 3px solid transparent; 
+        }
+        .nav-link-custom:hover { 
+            background-color: rgba(255, 255, 255, 0.1); 
+            color: #fff; 
+            border-bottom-color: rgba(255, 255, 255, 0.5); 
+        }
+        .nav-link-custom.active { 
+            background-color: rgba(0, 0, 0, 0.2); 
+            color: #fff; 
+            border-bottom-color: #fff; 
+        }
+        .nav-link-custom.has-dropdown::after { 
+            content: '?'; 
+            font-size: 0.7rem; 
+            margin-left: 0.4rem; 
+            opacity: 0.8; 
+        }
+        
+        /* Dropdown */
+        .dropdown-menu-custom { 
+            display: none; 
+            position: absolute; 
+            top: 100%; 
+            left: 0; 
+            background: #fff; 
+            min-width: 220px; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15); 
+            border-radius: 0 0 8px 8px; 
+            overflow: hidden; 
+            z-index: 1000; 
+        }
+        .nav-item:hover .dropdown-menu-custom { display: block; }
+        .dropdown-item-custom { 
+            display: block; 
+            padding: 0.9rem 1.3rem; 
+            color: #333; 
+            text-decoration: none; 
+            transition: all 0.2s; 
+            border-bottom: 1px solid #f0f0f0; 
+        }
+        .dropdown-item-custom:last-child { border-bottom: none; }
+        .dropdown-item-custom:hover { 
+            background-color: var(--primary-color); 
+            color: #fff; 
+            padding-left: 1.8rem; 
+        }
+        .dropdown-item-custom.active { 
+            background-color: rgba(37, 99, 235, 0.1); 
+            color: var(--primary-color); 
+            font-weight: 600; 
+        }
+        
+        /* Content */
+        .main-content { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            background: #fff; 
+            min-height: calc(100vh - 250px); 
+            padding: 50px; 
+        }
+        .main-content h1 { 
+            color: var(--primary-color); 
+            margin-top: 0; 
+            font-weight: 800; 
+        }
+        
+        /* Modules */
+        .module-section { margin: 50px 0; }
+        .module-title { 
+            color: var(--primary-color); 
+            font-size: 2rem; 
+            margin-bottom: 30px; 
+            font-weight: 700; 
+            border-bottom: 3px solid var(--primary-color); 
+            padding-bottom: 10px; 
+        }
+        
+        /* Slider */
+        .carousel-item img { 
+            width: 100%; 
+            height: 500px; 
+            object-fit: cover; 
+        }
+        .carousel-caption { 
+            background: rgba(0,0,0,0.6); 
+            padding: 30px; 
+            border-radius: 10px; 
+        }
+        .carousel-caption h3 { font-size: 2.5rem; margin-bottom: 15px; }
+        .carousel-caption p { font-size: 1.2rem; }
+        
+        /* Cards */
+        .card { 
+            border: none; 
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08); 
+            transition: transform 0.2s, box-shadow 0.2s; 
+        }
+        .card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12); 
+        }
+        .card-img-top { 
+            height: 220px; 
+            object-fit: cover; 
+        }
+        .card-title { 
+            color: var(--primary-color); 
+            font-weight: 700; 
+        }
+        
+        /* Footer */
+        footer { 
+            background: #2d3748; 
+            color: #e2e8f0; 
+            text-align: center; 
+            padding: 40px 20px; 
+            margin-top: 60px; 
+        }
+        footer p { margin: 5px 0; }
+        footer a { color: #60a5fa; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    @if (currentPage == null)
+    {
+        <div style="text-align:center; padding:100px; background: white; min-height: 100vh;">
+            <h1 style="font-size:100px; color:#e2e8f0; margin:0;">404</h1>
+            <p style="color:#64748b; font-size:1.5rem; margin-top:20px;">Aradýðýnýz sayfa bulunamadý.</p>
+        </div>
+    }
+    else
+    {
+        <nav class="site-navbar">
+            <ul class="nav-container">
+                @foreach (var p in mainPages)
+                {
+                    var childPages = GetChildPages(p.Id);
+                    var hasChildren = childPages.Any();
+                    <li class="nav-item">
+                        @if (hasChildren)
+                        {
+                            <span class="nav-link-custom has-dropdown">@p.Title</span>
+                            <div class="dropdown-menu-custom">
+                                @foreach (var child in childPages)
+                                {
+                                    <a href="/public/@TenantId/@child.Slug" class="dropdown-item-custom @(child.Slug == Slug ? "active" : "")">
+                                        @child.Title
+                                    </a>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <a href="/public/@TenantId/@p.Slug" class="nav-link-custom @(p.Slug == Slug ? "active" : "")">
+                                @p.Title
+                            </a>
+                        }
+                    </li>
+                }
+            </ul>
+        </nav>
+
+        <div class="main-content">
+            @* Sayfa HTML Ýçeriði *@
+            @((MarkupString)currentPage.Content)
+            
+            @* Modüller *@
+            @foreach (var module in pageModules.Where(m => m.IsActive).OrderBy(m => m.DisplayOrder))
+            {
+                @if (module.ContentType == ContentType.WidgetSlider)
+                {
+                    var sliders = GetSlidersForPage();
+                    @if (sliders.Any())
+                    {
+                        <div class="module-section">
+                            <div id="carouselSlider" class="carousel slide" data-bs-ride="carousel">
+                                <div class="carousel-indicators">
+                                    @for (int i = 0; i < sliders.Count; i++)
+                                    {
+                                        <button type="button" data-bs-target="#carouselSlider" data-bs-slide-to="@i" 
+                                                class="@(i == 0 ? "active" : "")" aria-label="Slide @(i+1)"></button>
+                                    }
+                                </div>
+                                <div class="carousel-inner">
+                                    @for (int i = 0; i < sliders.Count; i++)
+                                    {
+                                        var slide = sliders[i];
+                                        <div class="carousel-item @(i == 0 ? "active" : "")">
+                                            <img src="@slide.ImageUrl" class="d-block w-100" alt="@slide.Title">
+                                            @if (!string.IsNullOrEmpty(slide.Title) || !string.IsNullOrEmpty(slide.Description))
+                                            {
+                                                <div class="carousel-caption d-none d-md-block">
+                                                    @if (!string.IsNullOrEmpty(slide.Title)) { <h3>@slide.Title</h3> }
+                                                    @if (!string.IsNullOrEmpty(slide.Description)) { <p>@slide.Description</p> }
+                                                    @if (!string.IsNullOrEmpty(slide.ButtonText) && !string.IsNullOrEmpty(slide.ButtonLink))
+                                                    {
+                                                        <a href="@slide.ButtonLink" class="btn btn-primary btn-lg mt-3">@slide.ButtonText</a>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                <button class="carousel-control-prev" type="button" data-bs-target="#carouselSlider" data-bs-slide="prev">
+                                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                    <span class="visually-hidden">Önceki</span>
+                                </button>
+                                <button class="carousel-control-next" type="button" data-bs-target="#carouselSlider" data-bs-slide="next">
+                                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                    <span class="visually-hidden">Sonraki</span>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                }
+                
+                @if (module.ContentType == ContentType.WidgetAnnouncements)
+                {
+                    var announcements = GetAnnouncementsForPage();
+                    @if (announcements.Any())
+                    {
+                        <div class="module-section">
+                            <h2 class="module-title"><i class="bi bi-megaphone-fill me-2"></i>Duyurular</h2>
+                            <div class="row g-4">
+                                @foreach (var ann in announcements.Take(4))
+                                {
+                                    <div class="col-md-6">
+                                        <div class="card h-100">
+                                            @if (!string.IsNullOrEmpty(ann.ImageUrl))
+                                            {
+                                                <img src="@ann.ImageUrl" class="card-img-top" alt="@ann.Title">
+                                            }
+                                            <div class="card-body">
+                                                @if (ann.IsImportant) 
+                                                { 
+                                                    <span class="badge bg-danger mb-2">
+                                                        <i class="bi bi-exclamation-triangle-fill"></i> ÖNEMLÝ
+                                                    </span> 
+                                                }
+                                                <h5 class="card-title">@ann.Title</h5>
+                                                <p class="card-text">@ann.Content</p>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-calendar3"></i> @ann.PublishDate.ToString("dd MMMM yyyy")
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+                
+                @if (module.ContentType == ContentType.WidgetNews)
+                {
+                    var news = GetNewsForPage();
+                    @if (news.Any())
+                    {
+                        <div class="module-section">
+                            <h2 class="module-title"><i class="bi bi-newspaper me-2"></i>Haberler</h2>
+                            <div class="row g-4">
+                                @foreach (var item in news.Take(3))
+                                {
+                                    <div class="col-md-4">
+                                        <div class="card h-100">
+                                            @if (!string.IsNullOrEmpty(item.FeaturedImageUrl))
+                                            {
+                                                <img src="@item.FeaturedImageUrl" class="card-img-top" alt="@item.Title">
+                                            }
+                                            <div class="card-body">
+                                                @if (item.IsFeatured) 
+                                                { 
+                                                    <span class="badge bg-success mb-2">
+                                                        <i class="bi bi-star-fill"></i> ÖNE ÇIKAN
+                                                    </span> 
+                                                }
+                                                <h5 class="card-title">@item.Title</h5>
+                                                @if (!string.IsNullOrEmpty(item.Summary))
+                                                {
+                                                    <p class="card-text">@item.Summary</p>
+                                                }
+                                                <small class="text-muted">
+                                                    <i class="bi bi-calendar3"></i> @item.PublishDate.ToString("dd MMMM yyyy")
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+            }
+        </div>
+
+        <footer>
+            <p style="font-size: 1.1rem; font-weight: 600;">@currentTenant?.Name</p>
+            <p>&copy; @DateTime.Now.Year Tüm haklarý saklýdýr.</p>
+            <p style="font-size: 0.85rem; margin-top: 15px; opacity: 0.7;">
+                <a href="/pages" target="_blank">Yönetim Paneli</a>
+            </p>
+        </footer>
+    }
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+@code {
+    [Parameter] public Guid TenantId { get; set; }
+    [Parameter] public string Slug { get; set; } = "";
+
+    private Tenant? currentTenant;
+    private Theme? currentTheme;
+    private Page? currentPage;
+    private List<Page> allPages = new();
+    private List<Page> mainPages = new();
+    private List<PageContent> pageModules = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        currentTenant = await Context.Tenants.FindAsync(TenantId);
+        if (currentTenant != null)
+        {
+            currentTheme = await Context.Themes.FindAsync(currentTenant.ThemeId);
+            
+            allPages = await Context.Pages
+                .Where(p => p.TenantId == TenantId && p.IsPublished && p.ShowInMenu)
+                .OrderBy(p => p.MenuOrder)
+                .ToListAsync();
+
+            mainPages = allPages.Where(p => p.ParentPageId == null).ToList();
+            currentPage = allPages.FirstOrDefault(p => p.Slug == Slug);
+            
+            if (currentPage != null)
+            {
+                pageModules = await PageContentService.GetPageContentsAsync(currentPage.Id);
+            }
+        }
+    }
+
+    private List<Page> GetChildPages(Guid parentId)
+    {
+        return allPages.Where(p => p.ParentPageId == parentId).OrderBy(p => p.MenuOrder).ToList();
+    }
+
+    private List<Slider> GetSlidersForPage()
+    {
+        if (currentPage == null) return new();
+        return ContentService.GetSlidersForPageAsync(TenantId, currentPage.Id).Result;
+    }
+
+    private List<Announcement> GetAnnouncementsForPage()
+    {
+        if (currentPage == null) return new();
+        return ContentService.GetAnnouncementsForPageAsync(TenantId, currentPage.Id).Result;
+    }
+
+    private List<NewsArticle> GetNewsForPage()
+    {
+        if (currentPage == null) return new();
+        return ContentService.GetNewsForPageAsync(TenantId, currentPage.Id, 10).Result;
+    }
+}

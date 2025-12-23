@@ -1,0 +1,521 @@
+﻿@page "/stanford-demo"
+@using CoreBuilder.Data
+@using CoreBuilder.Models
+@inject AppDbContext Context
+@inject NavigationManager Navigation
+
+<PageTitle>Stanford University Demo</PageTitle>
+
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-header" style="background: #8C1515; color: white;">
+            <h3>?? Stanford University Demo Site</h3>
+        </div>
+        <div class="card-body">
+            @if (!isCreated)
+            {
+                <p><strong>Bu demo site Stanford.edu'nun birebir kopyas�n� olu�turacak:</strong></p>
+                <ul>
+                    <li>? Stanford Cardinal k�rm�z� renk (#8C1515)</li>
+                    <li>? �st men�: Academics, Research, Health Care, Campus Life, Admission, About</li>
+                    <li>? Dropdown alt men�ler</li>
+                    <li>? Hero banner "A Mission Defined by Possibility"</li>
+                    <li>? Campus News b�l�m�</li>
+                    <li>? Seven Schools listesi</li>
+                    <li>? Research istatistikleri</li>
+                    <li>? Footer ba�lant�lar�</li>
+                </ul>
+                <button class="btn btn-lg" style="background: #8C1515; color: white;" @onclick="CreateDemo">
+                    ?? Stanford Demo Olu�tur
+                </button>
+            }
+            else
+            {
+                <div class="alert alert-success">
+                    <h4>? Stanford Demo Site Olu�turuldu!</h4>
+                    <a href="/preview/@tenantId/home" target="_blank" class="btn btn-lg" style="background: #8C1515; color: white;">
+                        ?? Stanford Demo'yu A�
+                    </a>
+                    <a href="/pages" class="btn btn-secondary btn-lg ms-2">
+                        ?? Sayfalar� Y�net
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isCreated = false;
+    private Guid tenantId = Guid.Empty;
+
+    private void CreateDemo()
+    {
+        // Theme
+        var theme = new Theme
+        {
+            Name = "Stanford Cardinal",
+            PrimaryColor = "#8C1515",
+            SecondaryColor = "#F4F4F4",
+            FontFamily = "'Source Sans Pro', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        };
+        Context.Themes.Add(theme);
+        Context.SaveChanges();
+
+        // Tenant
+        var tenant = new Tenant
+        {
+            Name = "Stanford University",
+            Domain = "stanford.local",
+            ThemeId = theme.Id
+        };
+        Context.Tenants.Add(tenant);
+        Context.SaveChanges();
+        tenantId = tenant.Id;
+
+        // HOME
+        Context.Pages.Add(new Page
+        {
+            TenantId = tenant.Id,
+            Title = "Home",
+            Slug = "home",
+            PageType = PageType.Standard,
+            MenuOrder = 0,
+            ShowInMenu = false,
+            IsPublished = true,
+            Content = GetHomeContent()
+        });
+
+        // ACADEMICS (parent)
+        var academics = new Page
+        {
+            TenantId = tenant.Id,
+            Title = "Academics",
+            Slug = "academics",
+            PageType = PageType.Standard,
+            MenuOrder = 1,
+            ShowInMenu = true,
+            IsPublished = true,
+            Content = GetAcademicsContent()
+        };
+        Context.Pages.Add(academics);
+        Context.SaveChanges();
+
+        // Academics children
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Undergraduate Education", Slug = "undergraduate", ParentPageId = academics.Id, MenuOrder = 0, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Undergraduate Education</h1><p>Rich learning experiences that provide a broad liberal arts foundation and deep subject-area expertise.</p>" });
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Graduate Education", Slug = "graduate", ParentPageId = academics.Id, MenuOrder = 1, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Graduate Education</h1><p>Unsurpassed opportunities to participate in the advancement of entire fields of knowledge.</p>" });
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Schools", Slug = "schools", ParentPageId = academics.Id, MenuOrder = 2, ShowInMenu = true, IsPublished = true, Content = GetSchoolsContent() });
+
+        // RESEARCH (parent)
+        var research = new Page
+        {
+            TenantId = tenant.Id,
+            Title = "Research",
+            Slug = "research",
+            PageType = PageType.Standard,
+            MenuOrder = 2,
+            ShowInMenu = true,
+            IsPublished = true,
+            Content = GetResearchContent()
+        };
+        Context.Pages.Add(research);
+        Context.SaveChanges();
+
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Research Centers", Slug = "research-centers", ParentPageId = research.Id, MenuOrder = 0, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Research Centers A-Z</h1><p>Stanford is home to over 20 independent research institutes and centers.</p>" });
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Libraries", Slug = "libraries", ParentPageId = research.Id, MenuOrder = 1, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Stanford Libraries</h1><p>One of the world's leading academic library systems with over 9 million volumes.</p>" });
+
+        // HEALTH CARE (parent)
+        var health = new Page
+        {
+            TenantId = tenant.Id,
+            Title = "Health Care",
+            Slug = "health-care",
+            PageType = PageType.Standard,
+            MenuOrder = 3,
+            ShowInMenu = true,
+            IsPublished = true,
+            Content = GetHealthCareContent()
+        };
+        Context.Pages.Add(health);
+        Context.SaveChanges();
+
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Stanford Medicine", Slug = "stanford-medicine", ParentPageId = health.Id, MenuOrder = 0, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Stanford Medicine</h1><p>Leading a worldwide revolution in precision health through biomedical research, education, and clinical enterprises.</p>" });
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Stanford Health Care", Slug = "stanford-health-care", ParentPageId = health.Id, MenuOrder = 1, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Stanford Health Care</h1><p>Leveraging expertise and advanced technology to deliver unparalleled care for each patient's unique needs.</p>" });
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Stanford Children's Health", Slug = "stanford-childrens", ParentPageId = health.Id, MenuOrder = 2, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Stanford Children's Health</h1><p>The only health care network in the Bay Area exclusively dedicated to pediatric and obstetric care.</p>" });
+
+        // CAMPUS LIFE (parent)
+        var campus = new Page
+        {
+            TenantId = tenant.Id,
+            Title = "Campus Life",
+            Slug = "campus-life",
+            PageType = PageType.Standard,
+            MenuOrder = 4,
+            ShowInMenu = true,
+            IsPublished = true,
+            Content = GetCampusLifeContent()
+        };
+        Context.Pages.Add(campus);
+        Context.SaveChanges();
+
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Student Life", Slug = "student-life", ParentPageId = campus.Id, MenuOrder = 0, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Student Life</h1><p>A residential campus with diverse housing, exceptional dining, and over 600 student organizations.</p>" });
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "Recreation & Wellness", Slug = "recreation", ParentPageId = campus.Id, MenuOrder = 1, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>Recreation & Wellness</h1><p>State-of-the-art facilities and fitness programs to encourage movement and play.</p>" });
+        Context.Pages.Add(new Page { TenantId = tenant.Id, Title = "The Arts", Slug = "arts", ParentPageId = campus.Id, MenuOrder = 2, ShowInMenu = true, IsPublished = true, Content = "<h1 style='color:#8C1515'>The Arts at Stanford</h1><p>Enriching the Bay Area and shaping culture with arts experiences for everyone.</p>" });
+
+        // ADMISSION
+        Context.Pages.Add(new Page
+        {
+            TenantId = tenant.Id,
+            Title = "Admission",
+            Slug = "admission",
+            PageType = PageType.Standard,
+            MenuOrder = 5,
+            ShowInMenu = true,
+            IsPublished = true,
+            Content = GetAdmissionContent()
+        });
+
+        // ABOUT
+        Context.Pages.Add(new Page
+        {
+            TenantId = tenant.Id,
+            Title = "About",
+            Slug = "about",
+            PageType = PageType.Standard,
+            MenuOrder = 6,
+            ShowInMenu = true,
+            IsPublished = true,
+            Content = GetAboutContent()
+        });
+
+        // NEWS
+        Context.Pages.Add(new Page
+        {
+            TenantId = tenant.Id,
+            Title = "News",
+            Slug = "news",
+            PageType = PageType.Standard,
+            MenuOrder = 7,
+            ShowInMenu = true,
+            IsPublished = true,
+            Content = GetNewsContent()
+        });
+
+        Context.SaveChanges();
+        isCreated = true;
+    }
+
+    private string GetHomeContent() => @"
+<style>
+.stanford-hero { background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://www.stanford.edu/wp-content/uploads/2023/10/homepage-hero-optimized.jpg'); background-size: cover; background-position: center; padding: 150px 40px; text-align: center; color: white; margin: -50px -50px 50px -50px; }
+.stanford-hero h1 { font-size: 3.5rem; font-weight: 300; margin-bottom: 20px; letter-spacing: -1px; }
+.stanford-hero p { font-size: 1.3rem; max-width: 700px; margin: 0 auto 30px; line-height: 1.6; }
+.stanford-btn { background: #8C1515; color: white; padding: 14px 35px; text-decoration: none; font-weight: 600; display: inline-block; transition: all 0.3s; border: 2px solid #8C1515; }
+.stanford-btn:hover { background: transparent; color: white; border-color: white; }
+.section-title { color: #8C1515; font-size: 2rem; font-weight: 400; margin-bottom: 40px; padding-bottom: 15px; border-bottom: 3px solid #8C1515; }
+.news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; }
+.news-card { background: white; box-shadow: 0 2px 15px rgba(0,0,0,0.08); overflow: hidden; transition: transform 0.3s, box-shadow 0.3s; }
+.news-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
+.news-card img { width: 100%; height: 200px; object-fit: cover; }
+.news-card-body { padding: 25px; }
+.news-card-label { color: #8C1515; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; margin-bottom: 10px; }
+.news-card h3 { font-size: 1.2rem; font-weight: 600; color: #2e2d29; margin: 0; line-height: 1.4; }
+.news-card h3:hover { color: #8C1515; }
+.academics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin: 50px 0; }
+.academic-card { text-align: center; padding: 40px 30px; background: #f4f4f4; }
+.academic-card h3 { color: #8C1515; font-size: 1.3rem; margin-bottom: 15px; }
+.academic-card p { color: #555; font-size: 0.95rem; line-height: 1.6; }
+.academic-card a { color: #8C1515; text-decoration: none; font-weight: 600; }
+.schools-list { background: #f9f9f9; padding: 40px; margin: 40px 0; }
+.schools-list h3 { color: #2e2d29; font-size: 1.2rem; margin-bottom: 20px; }
+.schools-list ul { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.schools-list li a { color: #8C1515; text-decoration: none; font-weight: 500; }
+.schools-list li a:hover { text-decoration: underline; }
+</style>
+
+<div class='stanford-hero'>
+    <h1>A Mission Defined by Possibility</h1>
+    <p>At Stanford, our mission of discovery and learning is energized by a spirit of optimism and possibility that dates to our founding. Here you'll find a place of intellectual expansiveness, wide-ranging perspectives, and freedom to explore new lines of thinking.</p>
+    <a href='about' class='stanford-btn'>More about Stanford</a>
+</div>
+
+<h2 class='section-title'>Campus News</h2>
+<p style='margin-bottom:30px; color:#555;'>Stories about people, research, and innovation across the Farm</p>
+
+<div class='news-grid'>
+    <div class='news-card'>
+        <img src='https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&h=800&fit=crop' alt='News'>
+        <div class='news-card-body'>
+            <div class='news-card-label'>In the Spotlight</div>
+            <h3>Why research matters</h3>
+        </div>
+    </div>
+    <div class='news-card'>
+        <img src='https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&h=800&fit=crop' alt='News'>
+        <div class='news-card-body'>
+            <div class='news-card-label'>Health & Medicine</div>
+            <h3>Genetic changes tied to human brain evolution</h3>
+        </div>
+    </div>
+    <div class='news-card'>
+        <img src='https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&h=800&fit=crop' alt='News'>
+        <div class='news-card-body'>
+            <div class='news-card-label'>Community & Culture</div>
+            <h3>The year at Stanford, in focus</h3>
+        </div>
+    </div>
+    <div class='news-card'>
+        <img src='https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=1200&h=800&fit=crop' alt='News'>
+        <div class='news-card-body'>
+            <div class='news-card-label'>Education</div>
+            <h3>Fidgeting boosts creativity in students</h3>
+        </div>
+    </div>
+    <div class='news-card'>
+        <img src='https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=1200&h=800&fit=crop' alt='News'>
+        <div class='news-card-body'>
+            <div class='news-card-label'>Health & Medicine</div>
+            <h3>5 tips to manage holiday stress</h3>
+        </div>
+    </div>
+    <div class='news-card'>
+        <img src='https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=1200&h=800&fit=crop' alt='News'>
+        <div class='news-card-body'>
+            <div class='news-card-label'>Innovation</div>
+            <h3>Most intriguing innovations of 2025</h3>
+        </div>
+    </div>
+</div>
+
+<h2 class='section-title' style='margin-top:60px;'>Academics</h2>
+<p style='margin-bottom:30px; color:#555;'>Preparing students to make meaningful contributions to society as engaged citizens and leaders in a complex world</p>
+
+<div class='academics-grid'>
+    <div class='academic-card'>
+        <h3>Undergraduate Education</h3>
+        <p>Rich learning experiences that provide a broad liberal arts foundation and deep subject-area expertise</p>
+        <a href='undergraduate'>Learn more ?</a>
+    </div>
+    <div class='academic-card'>
+        <h3>Graduate Education</h3>
+        <p>Unsurpassed opportunities to participate in the advancement of entire fields of knowledge</p>
+        <a href='graduate'>Learn more ?</a>
+    </div>
+    <div class='academic-card'>
+        <h3>Lifelong Learning</h3>
+        <p>Continuing adult education, executive and professional programs, and programs for K-12 students</p>
+        <a href='#'>Learn more ?</a>
+    </div>
+</div>
+
+<div class='schools-list'>
+    <h3>Seven schools in which to pursue your passions</h3>
+    <ul>
+        <li><a href='#'>Medicine</a></li>
+        <li><a href='#'>Law</a></li>
+        <li><a href='#'>Humanities & Sciences</a></li>
+        <li><a href='#'>Engineering</a></li>
+        <li><a href='#'>Education</a></li>
+        <li><a href='#'>Sustainability</a></li>
+        <li><a href='#'>Business</a></li>
+    </ul>
+</div>";
+
+    private string GetAcademicsContent() => @"
+<h1 style='color:#8C1515; font-size:2.5rem;'>Academics at Stanford</h1>
+<p style='font-size:1.2rem; line-height:1.8; color:#555;'>Preparing students to make meaningful contributions to society as engaged citizens and leaders in a complex world.</p>
+
+<div style='display:grid; grid-template-columns:repeat(3,1fr); gap:30px; margin:50px 0;'>
+    <div style='padding:30px; background:#f4f4f4; text-align:center;'>
+        <h3 style='color:#8C1515;'>Undergraduate Education</h3>
+        <p>Rich learning experiences that provide a broad liberal arts foundation</p>
+    </div>
+    <div style='padding:30px; background:#f4f4f4; text-align:center;'>
+        <h3 style='color:#8C1515;'>Graduate Education</h3>
+        <p>Unsurpassed opportunities in advancing fields of knowledge</p>
+    </div>
+    <div style='padding:30px; background:#f4f4f4; text-align:center;'>
+        <h3 style='color:#8C1515;'>Lifelong Learning</h3>
+        <p>Continuing education and professional programs</p>
+    </div>
+</div>";
+
+    private string GetSchoolsContent() => @"
+<h1 style='color:#8C1515; font-size:2.5rem;'>Seven Schools</h1>
+<p style='font-size:1.2rem; margin-bottom:40px;'>Stanford's seven schools provide a breadth of academic excellence.</p>
+<ul style='font-size:1.1rem; line-height:2.5;'>
+    <li><strong style='color:#8C1515;'>School of Business</strong> - Graduate School of Business</li>
+    <li><strong style='color:#8C1515;'>School of Earth, Energy & Environmental Sciences</strong> - Doerr School of Sustainability</li>
+    <li><strong style='color:#8C1515;'>Graduate School of Education</strong></li>
+    <li><strong style='color:#8C1515;'>School of Engineering</strong></li>
+    <li><strong style='color:#8C1515;'>School of Humanities and Sciences</strong></li>
+    <li><strong style='color:#8C1515;'>School of Law</strong></li>
+    <li><strong style='color:#8C1515;'>School of Medicine</strong></li>
+</ul>";
+
+    private string GetResearchContent() => @"
+<h1 style='color:#8C1515; font-size:2.5rem;'>Research at Stanford</h1>
+<p style='font-size:1.2rem; line-height:1.8; margin-bottom:50px;'>Driving discoveries vital to our world, our health, and our intellectual life.</p>
+
+<div style='display:grid; grid-template-columns:repeat(3,1fr); gap:20px; text-align:center; background:#f4f4f4; padding:50px;'>
+    <div>
+        <div style='font-size:3rem; color:#8C1515; font-weight:700;'>6,699</div>
+        <div>Inventions created by federally funded Stanford research</div>
+    </div>
+    <div>
+        <div style='font-size:3rem; color:#8C1515; font-weight:700;'>3,029</div>
+        <div>U.S. patents based on federally funded Stanford research</div>
+    </div>
+    <div>
+        <div style='font-size:3rem; color:#8C1515; font-weight:700;'>400+</div>
+        <div>Start-up companies founded based on federally funded research</div>
+    </div>
+</div>
+
+<div style='display:grid; grid-template-columns:repeat(3,1fr); gap:20px; text-align:center; padding:50px;'>
+    <div>
+        <div style='font-size:3rem; color:#8C1515; font-weight:700;'>350,000+</div>
+        <div>Jobs created by companies that started with federally funded Stanford research</div>
+    </div>
+    <div>
+        <div style='font-size:3rem; color:#8C1515; font-weight:700;'>$94B</div>
+        <div>Private investment in start-up companies</div>
+    </div>
+    <div>
+        <div style='font-size:3rem; color:#8C1515; font-weight:700;'>$11T+</div>
+        <div>Market value of top 30 companies founded by Stanford alumni</div>
+    </div>
+</div>";
+
+    private string GetHealthCareContent() => @"
+<h1 style='color:#8C1515; font-size:2.5rem;'>Health Care</h1>
+<p style='font-size:1.2rem; line-height:1.8; margin-bottom:50px;'>Advancing human health through innovative research, education, and care.</p>
+
+<div style='display:grid; grid-template-columns:repeat(3,1fr); gap:30px;'>
+    <div style='padding:30px; background:#f4f4f4;'>
+        <h3 style='color:#8C1515;'>Stanford Medicine</h3>
+        <p>Leading a worldwide revolution in precision health through biomedical research, education, and clinical enterprises.</p>
+    </div>
+    <div style='padding:30px; background:#f4f4f4;'>
+        <h3 style='color:#8C1515;'>Stanford Health Care</h3>
+        <p>Leveraging expertise and advanced technology to deliver unparalleled care for each patient's unique needs.</p>
+    </div>
+    <div style='padding:30px; background:#f4f4f4;'>
+        <h3 style='color:#8C1515;'>Stanford Children's Health</h3>
+        <p>The only health care network in the Bay Area exclusively dedicated to pediatric and obstetric care.</p>
+    </div>
+</div>";
+
+    private string GetCampusLifeContent() => @"
+<h1 style='color:#8C1515; font-size:2.5rem;'>Campus Life</h1>
+<p style='font-size:1.2rem; line-height:1.8; margin-bottom:50px;'>Building a vibrant community of creative and accomplished people from around the world.</p>
+
+<div style='display:grid; grid-template-columns:repeat(3,1fr); gap:30px;'>
+    <div style='padding:30px; background:#f4f4f4;'>
+        <h3 style='color:#8C1515;'>Student Life</h3>
+        <p>A residential campus with diverse housing, exceptional dining, and over 600 student organizations.</p>
+    </div>
+    <div style='padding:30px; background:#f4f4f4;'>
+        <h3 style='color:#8C1515;'>Recreation & Wellness</h3>
+        <p>State-of-the-art facilities and fitness programs to encourage movement and play.</p>
+    </div>
+    <div style='padding:30px; background:#f4f4f4;'>
+        <h3 style='color:#8C1515;'>The Arts</h3>
+        <p>Enriching the Bay Area and shaping culture with arts experiences for everyone.</p>
+    </div>
+</div>";
+
+    private string GetAdmissionContent() => @"
+<style>
+.admission-hero { background: linear-gradient(rgba(140,21,21,0.8), rgba(140,21,21,0.8)), url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1600&h=600&fit=crop'); background-size: cover; padding: 80px 40px; color: white; margin: -50px -50px 50px -50px; text-align: center; }
+</style>
+
+<div class='admission-hero'>
+    <h1 style='font-size:2.5rem; font-weight:400;'>Admission to Stanford</h1>
+    <p style='font-size:1.3rem; max-width:700px; margin:20px auto;'>Offering extraordinary freedom to explore, to collaborate, and to challenge yourself</p>
+</div>
+
+<div style='display:grid; grid-template-columns:repeat(2,1fr); gap:40px; margin-top:40px;'>
+    <div>
+        <h2 style='color:#8C1515;'>Explore the Possibilities</h2>
+        <p style='font-size:1.1rem; line-height:1.8;'>We look for distinctive students who exhibit an abundance of energy and curiosity in their classes, activities, projects, research, and lives.</p>
+    </div>
+    <div>
+        <h2 style='color:#8C1515;'>Financial Aid</h2>
+        <p style='font-size:1.1rem; line-height:1.8;'>Stanford meets the full financial need of every admitted undergrad who qualifies for assistance. More than two-thirds of undergrads receive some form of financial assistance. Generally, tuition is covered for families with incomes below $150,000.</p>
+    </div>
+</div>
+
+<div style='display:grid; grid-template-columns:repeat(2,1fr); gap:30px; margin-top:50px;'>
+    <div style='padding:40px; background:#f4f4f4;'>
+        <h3 style='color:#8C1515;'>Undergraduate Admission</h3>
+        <p>Application deadline: January 5</p>
+        <p>Decision notification: April 1</p>
+        <a href='#' style='color:#8C1515; font-weight:600;'>Apply Now ?</a>
+    </div>
+    <div style='padding:40px; background:#f4f4f4;'>
+        <h3 style='color:#8C1515;'>Graduate Admission</h3>
+        <p>Deadlines vary by program</p>
+        <p>Contact individual departments</p>
+        <a href='#' style='color:#8C1515; font-weight:600;'>Explore Programs ?</a>
+    </div>
+</div>";
+
+    private string GetAboutContent() => @"
+<h1 style='color:#8C1515; font-size:2.5rem;'>About Stanford</h1>
+<p style='font-size:1.2rem; line-height:1.8; margin-bottom:40px;'>Stanford University, officially Leland Stanford Junior University, is a private research university in Stanford, California. The campus occupies 8,180 acres, among the largest in the United States, and enrolls over 17,000 students.</p>
+
+<div style='display:grid; grid-template-columns:repeat(4,1fr); gap:20px; text-align:center; background:#8C1515; color:white; padding:50px; margin:40px 0;'>
+    <div>
+        <div style='font-size:3rem; font-weight:700;'>17,000+</div>
+        <div>Students</div>
+    </div>
+    <div>
+        <div style='font-size:3rem; font-weight:700;'>2,300+</div>
+        <div>Faculty</div>
+    </div>
+    <div>
+        <div style='font-size:3rem; font-weight:700;'>20</div>
+        <div>Nobel Laureates</div>
+    </div>
+    <div>
+        <div style='font-size:3rem; font-weight:700;'>8,180</div>
+        <div>Acres</div>
+    </div>
+</div>
+
+<h2 style='color:#8C1515; margin-top:50px;'>History</h2>
+<p style='font-size:1.1rem; line-height:1.8;'>Founded in 1885 by Leland and Jane Stanford in memory of their only child, Leland Stanford Jr., who died of typhoid fever at age 15 the previous year. The university opened on October 1, 1891.</p>
+
+<h2 style='color:#8C1515; margin-top:40px;'>Mission</h2>
+<p style='font-size:1.1rem; line-height:1.8;'>To qualify students for personal success and direct usefulness in life; and to promote the public welfare by exercising an influence in behalf of humanity and civilization.</p>";
+
+    private string GetNewsContent() => @"
+<h1 style='color:#8C1515; font-size:2.5rem;'>Stanford News</h1>
+<p style='font-size:1.2rem; margin-bottom:40px;'>Stories about people, research, and innovation across the Farm</p>
+
+<div style='display:grid; grid-template-columns:repeat(3,1fr); gap:30px;'>
+    <div style='background:white; box-shadow:0 2px 10px rgba(0,0,0,0.1); overflow:hidden;'>
+        <img src='https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=1200&h=800&fit=crop' style='width:100%; height:200px; object-fit:cover;'>
+        <div style='padding:25px;'>
+            <div style='color:#8C1515; font-size:0.85rem; font-weight:600; text-transform:uppercase; margin-bottom:10px;'>Health & Medicine</div>
+            <h3 style='font-size:1.2rem; color:#2e2d29;'>Breakthrough in Cancer Research</h3>
+        </div>
+    </div>
+    <div style='background:white; box-shadow:0 2px 10px rgba(0,0,0,0.1); overflow:hidden;'>
+        <img src='https://images.unsplash.com/photo-1677442135136-760c813e0f26?w=1200&h=800&fit=crop' style='width:100%; height:200px; object-fit:cover;'>
+        <div style='padding:25px;'>
+            <div style='color:#8C1515; font-size:0.85rem; font-weight:600; text-transform:uppercase; margin-bottom:10px;'>Technology</div>
+            <h3 style='font-size:1.2rem; color:#2e2d29;'>AI Innovation Lab Opens</h3>
+        </div>
+    </div>
+    <div style='background:white; box-shadow:0 2px 10px rgba(0,0,0,0.1); overflow:hidden;'>
+        <img src='https://images.unsplash.com/photo-1562774053-701939374585?w=1200&h=800&fit=crop' style='width:100%; height:200px; object-fit:cover;'>
+        <div style='padding:25px;'>
+            <div style='color:#8C1515; font-size:0.85rem; font-weight:600; text-transform:uppercase; margin-bottom:10px;'>Campus</div>
+            <h3 style='font-size:1.2rem; color:#2e2d29;'>New Student Center Announced</h3>
+        </div>
+    </div>
+</div>";
+}
+
