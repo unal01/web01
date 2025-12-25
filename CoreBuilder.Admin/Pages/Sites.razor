@@ -1,10 +1,10 @@
-@page "/sites"
+﻿@page "/sites"
 @using CoreBuilder.Models
 @using CoreBuilder.Services
 @using CoreBuilder.Data
 @using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Forms
 @inject SiteService SiteService
-@inject ThemeService ThemeService
 @inject NavigationManager Navigation
 @inject AppDbContext Context
 @inject IJSRuntime JSRuntime
@@ -79,7 +79,7 @@
                                         <a href="/pages/@site.Id" class="btn btn-sm btn-outline-primary me-1" title="Sayfalar">
                                             <i class="bi bi-file-earmark-text"></i>
                                         </a>
-                                        <a href="/demo/@site.Id" class="btn btn-sm btn-outline-success me-1" target="_blank" title="Onizle">
+                                        <a href="/public/@site.Id/anasayfa" class="btn btn-sm btn-outline-success me-1" target="_blank" title="Onizle">
                                             <i class="bi bi-box-arrow-up-right"></i>
                                         </a>
                                         <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSite(site.Id)" title="Sil">
@@ -135,17 +135,55 @@
                                     <option value="Marketing">Pazarlama</option>
                                 </select>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Tema</label>
-                                <select class="form-select" @bind="editThemeId">
-                                    @foreach (var theme in themes)
-                                    {
-                                        <option value="@theme.Id">@theme.Name</option>
-                                    }
-                                </select>
-                            </div>
                         </div>
                         <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Tasarım Ayarları</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label small">Menü Tipi</label>
+                                        <div>
+                                            <InputRadioGroup @bind-Value="editMenuLayout">
+                                                <div class="form-check form-check-inline">
+                                                    <InputRadio class="form-check-input" id="menuHor" Value='@("Horizontal")' />
+                                                    <label class="form-check-label small" for="menuHor">Yatay</label>
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <InputRadio class="form-check-input" id="menuVer" Value='@("Vertical")' />
+                                                    <label class="form-check-label small" for="menuVer">Dikey</label>
+                                                </div>
+                                            </InputRadioGroup>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small">Yazı Tipi</label>
+                                        <select class="form-select" @bind="editFontFamily">
+                                            <option value="Inter, sans-serif">Inter</option>
+                                            <option value="Arial, sans-serif">Arial</option>
+                                            <option value="Roboto, sans-serif">Roboto</option>
+                                            <option value="Georgia, serif">Georgia</option>
+                                            <option value="Tahoma, sans-serif">Tahoma</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-6 mt-2">
+                                        <label class="form-label small">Ana Renk</label>
+                                        <div class="d-flex gap-2">
+                                            <input type="color" class="form-control form-control-color" @bind="editPrimaryColor" style="width:60px;height:38px;" />
+                                            <input type="text" class="form-control" @bind="editPrimaryColor" placeholder="#0d6efd" />
+                                        </div>
+                                    </div>
+
+                                    <div class="col-6 mt-2">
+                                        <label class="form-label small">İkincil Renk</label>
+                                        <div class="d-flex gap-2">
+                                            <input type="color" class="form-control form-control-color" @bind="editSecondaryColor" style="width:60px;height:38px;" />
+                                            <input type="text" class="form-control" @bind="editSecondaryColor" placeholder="#6c757d" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Header Arka Plan Rengi</label>
                                 <div class="d-flex gap-2">
@@ -160,15 +198,20 @@
                                     <input type="text" class="form-control" @bind="editHeaderTextColor" placeholder="#333333" />
                                 </div>
                             </div>
+
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Header Onizleme</label>
                                 <div class="border rounded p-3" style="background-color:@editHeaderColor;">
-                                    <span style="color:@editHeaderTextColor;font-weight:bold;">@editName</span>
-                                    <span style="color:@editHeaderTextColor;margin-left:20px;">Ana Sayfa</span>
-                                    <span style="color:@editHeaderTextColor;margin-left:10px;">Hakkimizda</span>
-                                    <span style="color:@editHeaderTextColor;margin-left:10px;">Iletisim</span>
+                                    @if (!string.IsNullOrEmpty(editLogoUrl))
+                                    {
+                                        <img src="@editLogoUrl" style="height:30px;margin-right:15px;" />
+                                    }
+                                    <span style="color:@editHeaderTextColor;font-weight:bold;">@(string.IsNullOrEmpty(editName) ? "Site Adi" : editName)</span>
+                                    <span style="color:@editHeaderTextColor;margin-left:20px;opacity:0.8;">Ana Sayfa</span>
+                                    <span style="color:@editHeaderTextColor;margin-left:10px;opacity:0.8;">Hakkimizda</span>
                                 </div>
                             </div>
+
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Logo</label>
                                 @if (!string.IsNullOrEmpty(editLogoUrl))
@@ -199,14 +242,16 @@
 
 @code {
     private List<Tenant> sites = new();
-    private List<Theme> themes = new();
     private string successMessage = "";
     
     // Edit Modal
     private bool showEditModal;
     private Guid editSiteId;
     private string editName = "", editDomain = "", editCategory = "Education";
-    private Guid editThemeId;
+    private string editMenuLayout = "Horizontal";
+    private string editPrimaryColor = "#0d6efd";
+    private string editSecondaryColor = "#6c757d";
+    private string editFontFamily = "Inter, sans-serif";
     private string editHeaderColor = "#ffffff", editHeaderTextColor = "#333333";
     private string? editLogoUrl;
     private long maxFileSize = 2 * 1024 * 1024;
@@ -219,7 +264,6 @@
     private void LoadData()
     {
         sites = SiteService.GetAllSites();
-        themes = ThemeService.GetAllThemes();
     }
 
     private void CreateNewSite()
@@ -238,7 +282,10 @@
         editName = site.Name;
         editDomain = site.Domain;
         editCategory = site.Category;
-        editThemeId = site.ThemeId;
+        editMenuLayout = site.MenuLayout ?? "Horizontal";
+        editPrimaryColor = site.PrimaryColor ?? "#0d6efd";
+        editSecondaryColor = site.SecondaryColor ?? "#6c757d";
+        editFontFamily = site.FontFamily ?? "Inter, sans-serif";
         editHeaderColor = site.HeaderColor ?? "#ffffff";
         editHeaderTextColor = site.HeaderTextColor ?? "#333333";
         editLogoUrl = site.LogoUrl;
@@ -268,7 +315,10 @@
             site.Name = editName;
             site.Domain = editDomain;
             site.Category = editCategory;
-            site.ThemeId = editThemeId;
+            site.MenuLayout = editMenuLayout;
+            site.PrimaryColor = editPrimaryColor;
+            site.SecondaryColor = editSecondaryColor;
+            site.FontFamily = editFontFamily;
             site.HeaderColor = editHeaderColor;
             site.HeaderTextColor = editHeaderTextColor;
             site.LogoUrl = editLogoUrl;
